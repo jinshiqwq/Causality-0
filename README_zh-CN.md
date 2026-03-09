@@ -9,6 +9,7 @@
   <img alt="protocol" src="https://img.shields.io/badge/protocol-.c0%20V9-0a7ea4">
   <img alt="timeline" src="https://img.shields.io/badge/timeline-deterministic-1f6feb">
   <img alt="fps" src="https://img.shields.io/badge/fps-dynamic-ffb000">
+  <img alt="downloads" src="https://img.shields.io/github/downloads/MiaoMiao4567/Causality-0/total">
   <img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0-red">
   <img alt="status" src="https://img.shields.io/badge/status-experimental-orange">
 </p>
@@ -181,6 +182,12 @@ c0 play
 - [ ] 稳定死亡与布娃娃回放边界情况
 - [ ] 增强录像检查与调试工具
 - [ ] 增加配置化回放策略
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=MiaoMiao4567/Causality-0&type=Date)](https://star-history.com/#MiaoMiao4567/Causality-0&Date)
 
 ---
 
