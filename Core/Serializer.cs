@@ -1,4 +1,5 @@
 using System.IO;
+using PlayerRoles;
 
 namespace Causality0.Core;
 

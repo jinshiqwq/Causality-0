@@ -34,13 +34,13 @@ public sealed class Causality : ParentCommand
 
     protected override bool ExecuteParent(ArraySegment<string> arguments, ICommandSender sender, out string response)
     {
-        response = "use start, stop, spawn, play, save, load";
+        response = "use start, stop, spawn, play, save, load; alias: c0";
         return false;
     }
 
     public override string Command { get; } = "causality";
 
-    public override string[] Aliases { get; } = Array.Empty<string>();
+    public override string[] Aliases { get; } = new[] { "c0" };
 
     public override string Description { get; } = "Timeline controls.";
 }

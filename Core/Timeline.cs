@@ -702,8 +702,8 @@ public static class Timeline
                     {
                         if (ev.Type == EventType.RoleChanged)
                         {
-                            RoleTypeId r = (RoleTypeId)ev.RoleId;
-                            h.roleManager.ServerSetRole(r, RoleChangeReason.Respawn);
+                            RoleTypeId nr = (RoleTypeId)ev.RoleId;
+                            h.roleManager.ServerSetRole(nr, RoleChangeReason.Respawn);
                         }
                         else if (ev.Type == EventType.Died)
                         {
