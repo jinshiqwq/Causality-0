@@ -126,42 +126,15 @@ public sealed class Spawn : ICommand
         int n = 0;
         foreach (ActorTrack t in Timeline.Tracks.Values)
         {
-            if (t.Frames.Count <= 0)
+            if (t.Frames.Count <= 0 || t.StartFrame > 0)
             {
                 continue;
             }
 
-            ReferenceHub h = DummyUtils.SpawnDummy(t.ActorName);
-            if (h == null)
+            if (Timeline.TrySpawnActor(t))
             {
-                continue;
+                n++;
             }
-
-            Vector3 pos = t.Frames[0].Pos;
-            Vector2 rot = t.Frames[0].Rot;
-            RoleTypeId safeRole = (RoleTypeId)(sbyte)t.Role;
-            for (int i = 0; i < t.LifeEvents.Count; i++)
-            {
-                if (t.LifeEvents[i].Type == EventType.RoleChanged)
-                {
-                    safeRole = (RoleTypeId)t.LifeEvents[i].RoleId;
-                    break;
-                }
-            }
-
-            h.roleManager.ServerSetRole(safeRole, RoleChangeReason.RemoteAdmin);
-            Timing.CallDelayed(0.1f, () =>
-            {
-                if (h == null)
-                {
-                    return;
-                }
-
-                h.TryOverridePosition(pos);
-                h.TryOverrideRotation(rot);
-                t.Dummy = h;
-            });
-            n++;
         }
 
         if (n == 0)
@@ -279,6 +252,7 @@ public sealed class Load : ICommand
             return true;
         }
 
+        Timeline.ApplyWorldState();
         response = $"Replay loaded: {p}";
         return true;
     }

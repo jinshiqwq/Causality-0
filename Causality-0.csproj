@@ -74,6 +74,7 @@
     <Compile Include="Core\InteractFrame.cs" />
     <Compile Include="Core\DamageData.cs" />
     <Compile Include="Core\LifecycleEvent.cs" />
+    <Compile Include="Core\WorldData.cs" />
     <Compile Include="Core\DummyInputWrapper.cs" />
     <Compile Include="Core\DummyMotorWrapper.cs" />
     <Compile Include="Core\Timeline.cs" />
@@ -81,12 +82,14 @@
     <Compile Include="Event\PlayerEvent\Verified.cs" />
     <Compile Include="Event\PlayerEvent\Shooting.cs" />
     <Compile Include="Event\PlayerEvent\Reloading.cs" />
+    <Compile Include="Event\PlayerEvent\Lockers.cs" />
     <Compile Include="Event\PlayerEvent\Using.cs" />
     <Compile Include="Event\PlayerEvent\VoiceChat.cs" />
     <Compile Include="Event\PlayerEvent\Throwing.cs" />
     <Compile Include="Event\PlayerEvent\Interacting.cs" />
     <Compile Include="Event\PlayerEvent\Lifecycle.cs" />
     <Compile Include="Event\ServerEvent\MapGenerating.cs" />
+    <Compile Include="Event\ServerEvent\Pickups.cs" />
     <Compile Include="Command\RemoteAdmin\Causality.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

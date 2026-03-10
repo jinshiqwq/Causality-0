@@ -12,6 +12,8 @@ public sealed class Causality0 : Plugin
 
     public MapGenerating ServerEvent { get; } = new();
 
+    public Pickups PickupEvent { get; } = new();
+
     public Verified VerifiedEvent { get; } = new();
 
     public Shooting ShootingEvent { get; } = new();
@@ -25,6 +27,8 @@ public sealed class Causality0 : Plugin
     public Throwing ThrowingEvent { get; } = new();
 
     public Interacting InteractingEvent { get; } = new();
+
+    public Lockers LockersEvent { get; } = new();
 
     public Lifecycle LifecycleEvent { get; } = new();
 
@@ -42,6 +46,7 @@ public sealed class Causality0 : Plugin
     {
         Instance = this;
         ServerEvent.Enable();
+        PickupEvent.Enable();
         VerifiedEvent.Enable();
         ShootingEvent.Enable();
         ReloadingEvent.Enable();
@@ -49,12 +54,14 @@ public sealed class Causality0 : Plugin
         VoiceChatEvent.Enable();
         ThrowingEvent.Enable();
         InteractingEvent.Enable();
+        LockersEvent.Enable();
         LifecycleEvent.Enable();
     }
 
     public override void Disable()
     {
         LifecycleEvent.Disable();
+        LockersEvent.Disable();
         InteractingEvent.Disable();
         ThrowingEvent.Disable();
         VoiceChatEvent.Disable();
@@ -62,6 +69,7 @@ public sealed class Causality0 : Plugin
         ReloadingEvent.Disable();
         ShootingEvent.Disable();
         VerifiedEvent.Disable();
+        PickupEvent.Disable();
         ServerEvent.Disable();
         if (ReferenceEquals(Instance, this))
         {

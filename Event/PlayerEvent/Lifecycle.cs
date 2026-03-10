@@ -10,10 +10,12 @@ public sealed class Lifecycle
     {
         PlayerEvents.ChangedRole += OnChangedRole;
         PlayerEvents.Dying += OnDying;
+        PlayerEvents.Left += OnLeft;
     }
 
     public void Disable()
     {
+        PlayerEvents.Left -= OnLeft;
         PlayerEvents.Dying -= OnDying;
         PlayerEvents.ChangedRole -= OnChangedRole;
     }
@@ -36,5 +38,15 @@ public sealed class Lifecycle
         }
 
         Timeline.TrackLifecycleDeath(ev.Player.ReferenceHub.PlayerId, ev.DamageHandler);
+    }
+
+    private void OnLeft(PlayerLeftEventArgs ev)
+    {
+        if (!Timeline.IsRec || ev.Player == null || ev.Player.IsDummy)
+        {
+            return;
+        }
+
+        Timeline.TrackLifecycleLeft(ev.Player.ReferenceHub.PlayerId);
     }
 }

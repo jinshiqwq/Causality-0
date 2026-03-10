@@ -1,4 +1,5 @@
 using System.IO;
+using InventorySystem.Items;
 using PlayerRoles;
 
 namespace Causality0.Core;
@@ -16,7 +17,7 @@ public static class Serializer
         using FileStream fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
         using BinaryWriter w = new BinaryWriter(fs);
         w.Write("CAUS");
-        w.Write((byte)9);
+        w.Write((byte)13);
         w.Write(Timeline.MapSeed);
         w.Write(Timeline.CurrentFps);
         w.Write(Timeline.Tracks.Count);
@@ -25,6 +26,7 @@ public static class Serializer
             w.Write(t.PlayerId);
             w.Write(t.ActorName ?? string.Empty);
             w.Write(t.Role);
+            w.Write(t.StartFrame);
             w.Write(t.Frames.Count);
             for (int i = 0; i < t.Frames.Count; i++)
             {
@@ -102,6 +104,116 @@ public static class Serializer
             w.Write(x.Act);
             w.Write(x.CanOpen);
         }
+
+        w.Write(Timeline.HasWorldState);
+        if (Timeline.HasWorldState)
+        {
+            w.Write(Timeline.WorldPickups.Count);
+            for (int i = 0; i < Timeline.WorldPickups.Count; i++)
+            {
+                PickupData x = Timeline.WorldPickups[i];
+                w.Write(x.Id);
+                w.Write(x.T);
+                w.Write(x.Pos.x);
+                w.Write(x.Pos.y);
+                w.Write(x.Pos.z);
+                w.Write(x.Rot.x);
+                w.Write(x.Rot.y);
+                w.Write(x.Rot.z);
+                w.Write(x.Rot.w);
+                w.Write(x.At);
+                w.Write(x.Am);
+                w.Write(x.Locked);
+            }
+
+            w.Write(Timeline.PickupOps.Count);
+            for (int i = 0; i < Timeline.PickupOps.Count; i++)
+            {
+                PickupOp x = Timeline.PickupOps[i];
+                w.Write(x.Ts);
+                w.Write((byte)x.Act);
+                w.Write(x.Id);
+                if (x.Act != PickupAct.Remove)
+                {
+                    PickupData pd = x.Data;
+                    w.Write(pd.Id);
+                    w.Write(pd.T);
+                    w.Write(pd.Pos.x);
+                    w.Write(pd.Pos.y);
+                    w.Write(pd.Pos.z);
+                    w.Write(pd.Rot.x);
+                    w.Write(pd.Rot.y);
+                    w.Write(pd.Rot.z);
+                    w.Write(pd.Rot.w);
+                    w.Write(pd.At);
+                    w.Write(pd.Am);
+                    w.Write(pd.Locked);
+                }
+            }
+
+            w.Write(Timeline.LockerStates.Count);
+            for (int i = 0; i < Timeline.LockerStates.Count; i++)
+            {
+                LockerData x = Timeline.LockerStates[i];
+                w.Write(x.Pos.x);
+                w.Write(x.Pos.y);
+                w.Write(x.Pos.z);
+                w.Write(x.Id);
+                w.Write(x.Open);
+                w.Write(x.WasOpen);
+                w.Write(x.Items.Count);
+                for (int j = 0; j < x.Items.Count; j++)
+                {
+                    PickupData pd = x.Items[j];
+                    w.Write(pd.Id);
+                    w.Write(pd.T);
+                    w.Write(pd.Pos.x);
+                    w.Write(pd.Pos.y);
+                    w.Write(pd.Pos.z);
+                    w.Write(pd.Rot.x);
+                    w.Write(pd.Rot.y);
+                    w.Write(pd.Rot.z);
+                    w.Write(pd.Rot.w);
+                    w.Write(pd.At);
+                    w.Write(pd.Am);
+                    w.Write(pd.Locked);
+                }
+            }
+
+            w.Write(Timeline.LockerOps.Count);
+            for (int i = 0; i < Timeline.LockerOps.Count; i++)
+            {
+                LockerOp x = Timeline.LockerOps[i];
+                w.Write(x.Ts);
+                w.Write(x.Pos.x);
+                w.Write(x.Pos.y);
+                w.Write(x.Pos.z);
+                w.Write(x.Id);
+                w.Write(x.Open);
+                w.Write(x.CanOpen);
+            }
+        }
+
+        w.Write(Timeline.ProjTracks.Count);
+        for (int i = 0; i < Timeline.ProjTracks.Count; i++)
+        {
+            ProjectileTrack x = Timeline.ProjTracks[i];
+            w.Write((ushort)x.ProjectileType);
+            w.Write(x.StartFrame);
+            w.Write(x.OwnerId);
+            w.Write(x.Frames.Count);
+            for (int j = 0; j < x.Frames.Count; j++)
+            {
+                ProjectileFrame f = x.Frames[j];
+                w.Write(f.Pos.x);
+                w.Write(f.Pos.y);
+                w.Write(f.Pos.z);
+                w.Write(f.Rot.x);
+                w.Write(f.Rot.y);
+                w.Write(f.Rot.z);
+                w.Write(f.Rot.w);
+            }
+        }
     }
 
     public static bool Load(string path)
@@ -138,7 +250,8 @@ public static class Serializer
             {
                 PlayerId = r.ReadInt32(),
                 ActorName = r.ReadString(),
-                Role = r.ReadSByte()
+                Role = r.ReadSByte(),
+                StartFrame = v >= 10 ? r.ReadInt32() : 0
             };
             int m = r.ReadInt32();
             for (int j = 0; j < m; j++)
@@ -221,6 +334,82 @@ public static class Serializer
             for (int i = 0; i < c; i++)
             {
                 Timeline.Interacts.Add(new InteractFrame(r.ReadSingle(), r.ReadInt32(), r.ReadByte(), r.ReadByte(), r.ReadBoolean()));
+            }
+        }
+
+        if (v >= 11)
+        {
+            Timeline.HasWorldState = r.ReadBoolean();
+            if (Timeline.HasWorldState)
+            {
+                int c = r.ReadInt32();
+                for (int i = 0; i < c; i++)
+                {
+                    Timeline.WorldPickups.Add(new PickupData(r.ReadInt32(), (ItemType)r.ReadUInt16(), new UnityEngine.Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle()), new UnityEngine.Quaternion(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle()), r.ReadUInt32(), r.ReadUInt16(), r.ReadBoolean()));
+                }
+
+                c = r.ReadInt32();
+                for (int i = 0; i < c; i++)
+                {
+                    float ts = r.ReadSingle();
+                    PickupAct a = (PickupAct)r.ReadByte();
+                    int id = r.ReadInt32();
+                    if (a != PickupAct.Remove)
+                    {
+                        PickupData d = new PickupData(r.ReadInt32(), (ItemType)r.ReadUInt16(), new UnityEngine.Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle()), new UnityEngine.Quaternion(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle()), r.ReadUInt32(), r.ReadUInt16(), r.ReadBoolean());
+                        Timeline.PickupOps.Add(new PickupOp(ts, a, id, d));
+                    }
+                    else
+                    {
+                        Timeline.PickupOps.Add(PickupOp.NewRemove(ts, id));
+                    }
+                }
+
+                c = r.ReadInt32();
+                for (int i = 0; i < c; i++)
+                {
+                    LockerData x = new LockerData
+                    {
+                        Pos = new UnityEngine.Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle()),
+                        Id = r.ReadByte(),
+                        Open = r.ReadBoolean(),
+                        WasOpen = r.ReadBoolean()
+                    };
+                    int n2 = r.ReadInt32();
+                    for (int j = 0; j < n2; j++)
+                    {
+                        x.Items.Add(new PickupData(r.ReadInt32(), (ItemType)r.ReadUInt16(), new UnityEngine.Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle()), new UnityEngine.Quaternion(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle()), r.ReadUInt32(), r.ReadUInt16(), r.ReadBoolean()));
+                    }
+
+                    Timeline.LockerStates.Add(x);
+                }
+
+                c = r.ReadInt32();
+                for (int i = 0; i < c; i++)
+                {
+                    Timeline.LockerOps.Add(new LockerOp(r.ReadSingle(), new UnityEngine.Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle()), r.ReadByte(), r.ReadBoolean(), r.ReadBoolean()));
+                }
+            }
+        }
+
+        if (v >= 12)
+        {
+            int c = r.ReadInt32();
+            for (int i = 0; i < c; i++)
+            {
+                ProjectileTrack x = new ProjectileTrack
+                {
+                    ProjectileType = (ItemType)r.ReadUInt16(),
+                    StartFrame = r.ReadInt32(),
+                    OwnerId = r.ReadInt32()
+                };
+                int n2 = r.ReadInt32();
+                for (int j = 0; j < n2; j++)
+                {
+                    x.Frames.Add(new ProjectileFrame(new UnityEngine.Vector3(r.ReadSingle(), r.ReadSingle(), r.ReadSingle()), new UnityEngine.Quaternion(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle())));
+                }
+
+                Timeline.ProjTracks.Add(x);
             }
         }
 

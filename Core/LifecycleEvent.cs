@@ -6,7 +6,8 @@ namespace Causality0.Core;
 public enum EventType : byte
 {
     RoleChanged,
-    Died
+    Died,
+    Left
 }
 
 public struct LifecycleEvent
@@ -32,5 +33,10 @@ public struct LifecycleEvent
     public static LifecycleEvent NewDeath(int f, DamageHandlerBase h)
     {
         return new LifecycleEvent(f, EventType.Died, 0, DamageData.FromHandler(h));
+    }
+
+    public static LifecycleEvent NewLeft(int f)
+    {
+        return new LifecycleEvent(f, EventType.Left, 0, default);
     }
 }

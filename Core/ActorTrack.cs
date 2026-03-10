@@ -27,6 +27,8 @@ public sealed class ActorTrack
 
     public sbyte Role { get; set; }
 
+    public int StartFrame { get; set; }
+
     public List<FrameData> Frames { get; } = new List<FrameData>();
 
     public List<AudioPacket> AudioFrames { get; } = new List<AudioPacket>();

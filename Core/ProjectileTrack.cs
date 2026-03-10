@@ -23,6 +23,7 @@ public sealed class ProjectileTrack
     public List<ProjectileFrame> Frames { get; } = new List<ProjectileFrame>();
     public bool HasDetonated { get; set; }
     public int StartFrame { get; set; }
+    public int OwnerId { get; set; }
     public Footprint Owner { get; set; }
     public ThrownProjectile Live { get; set; }
     public ThrownProjectile Puppet { get; set; }
