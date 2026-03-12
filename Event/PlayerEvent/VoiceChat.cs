@@ -21,7 +21,7 @@ public sealed class VoiceChat
 
     private void OnSendingVoice(PlayerSendingVoiceMessageEventArgs ev)
     {
-        if (!Timeline.IsRec)
+        if (!Timeline.IsRec || global::Causality0.Causality0.Instance?.Config?.RecordVoice != true)
         {
             return;
         }

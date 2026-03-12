@@ -6,7 +6,7 @@ using LabApi.Loader.Features.Plugins;
 
 namespace Causality0;
 
-public sealed class Causality0 : Plugin
+public sealed class Causality0 : Plugin<Causality0Config>
 {
     public static Causality0 Instance { get; private set; }
 
@@ -38,13 +38,24 @@ public sealed class Causality0 : Plugin
 
     public override string Author { get; } = "MiaoMiao";
 
-    public override Version Version { get; } = new(1, 0, 0);
+    public override Version Version { get; } = new(1, 0, 1);
 
     public override Version RequiredApiVersion { get; } = new(LabApiProperties.CompiledVersion);
 
     public override void Enable()
     {
         Instance = this;
+        int fps = Config?.DefaultRecordFps ?? 60;
+        if (fps < 1)
+        {
+            fps = 1;
+        }
+        else if (fps > 240)
+        {
+            fps = 240;
+        }
+
+        Core.Timeline.CurrentFps = fps;
         ServerEvent.Enable();
         PickupEvent.Enable();
         VerifiedEvent.Enable();

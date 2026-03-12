@@ -143,6 +143,8 @@ public static class Timeline
     public static void StartRecord(ReferenceHub h)
     {
         StopRecord();
+        int fps = global::Causality0.Causality0.Instance?.Config?.DefaultRecordFps ?? 60;
+        CurrentFps = Mathf.Clamp(fps, 1, 240);
         MapSeed = MapGeneration.SeedSynchronizer.Seed;
         RecordStartTime = Time.time;
         RecFrame = 0;
@@ -524,6 +526,61 @@ public static class Timeline
         return false;
     }
 
+    private static void MarkLockerFilled(Locker lk)
+    {
+        if (lk?.Base == null)
+        {
+            return;
+        }
+
+        var f = typeof(MapGeneration.Distributors.Locker).GetField("_serverChambersFilled", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        if (f != null)
+        {
+            f.SetValue(lk.Base, true);
+        }
+    }
+
+    private static void SyncMicroPedestal(Locker lk)
+    {
+        if (lk?.Base is not InventorySystem.Items.MicroHID.MicroHIDPedestal mp || lk.Chambers.Count < 1)
+        {
+            return;
+        }
+
+        InventorySystem.Items.MicroHID.MicroHIDPickup p = null;
+        for (int i = 0; i < lk.Chambers[0].Base.Content.Count; i++)
+        {
+            if (lk.Chambers[0].Base.Content[i] is InventorySystem.Items.MicroHID.MicroHIDPickup x)
+            {
+                p = x;
+                break;
+            }
+        }
+
+        var tf = typeof(InventorySystem.Items.MicroHID.MicroHIDPedestal).GetField("_trackedPickup", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        var ff = typeof(InventorySystem.Items.MicroHID.MicroHIDPedestal).GetField("_isTrackingPickup", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        var hf = typeof(InventorySystem.Items.MicroHID.MicroHIDPedestal).GetField("_hasHidDoorOpened", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        tf?.SetValue(mp, p != null ? p.transform : null);
+        ff?.SetValue(mp, p != null);
+        hf?.SetValue(mp, false);
+        if (p == null)
+        {
+            return;
+        }
+
+        var m = typeof(InventorySystem.Items.MicroHID.MicroHIDPedestal).GetMethod("ReleaseConnectionWithPickup", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        if (m == null)
+        {
+            return;
+        }
+
+        var cb = (System.Action)System.Delegate.CreateDelegate(typeof(System.Action), mp, m, false);
+        if (cb != null)
+        {
+            p.OnSelfDestroyed += cb;
+        }
+    }
+
     private static Pickup SpawnWorldPickup(PickupData x)
     {
         Pickup p = Pickup.Create(x.ItemType, x.Pos, x.Rot);
@@ -539,29 +596,61 @@ public static class Timeline
 
     private static Pickup SpawnLockerPickup(LockerChamber c, PickupData x, int idx, bool v)
     {
-        c.Base.GetSpawnpoint(x.ItemType, idx, out Vector3 p0, out Quaternion r0, out Transform t0);
-        Pickup p = Pickup.Create(x.ItemType, p0, r0);
+        Pickup p = null;
+        try
+        {
+            object[] a = { x.ItemType, idx, null, null, null };
+            var m = c.Base.GetType().GetMethod("GetSpawnpoint", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic, null, new[] { typeof(ItemType), typeof(int), typeof(Vector3).MakeByRefType(), typeof(Quaternion).MakeByRefType(), typeof(Transform).MakeByRefType() }, null);
+            if (m != null && InventoryItemLoader.AvailableItems.TryGetValue(x.ItemType, out ItemBase it))
+            {
+                m.Invoke(c.Base, a);
+                if (a[2] is Vector3 p0 && a[3] is Quaternion r0 && a[4] is Transform t0 && t0 != null)
+                {
+                    ItemPickupBase b = Object.Instantiate(it.PickupDropModel, p0, r0);
+                    if (b != null)
+                    {
+                        b.transform.SetParent(t0);
+                        b.NetworkInfo = new PickupSyncInfo(x.ItemType, it.Weight, 0, locked: true);
+                        c.Base.Content.Add(b);
+                        if (b is InventorySystem.Items.Pickups.IPickupDistributorTrigger trg)
+                        {
+                            trg.OnDistributed();
+                        }
+
+                        if (b.TryGetComponent<Rigidbody>(out var rb))
+                        {
+                            rb.isKinematic = true;
+                            rb.transform.ResetLocalPose();
+                            MapGeneration.Distributors.SpawnablesDistributorBase.BodiesToUnfreeze.Add(rb);
+                        }
+
+                        p = Pickup.Get(b);
+                        if (p != null)
+                        {
+                            if (c.Base.SpawnOnFirstChamberOpening && !v)
+                            {
+                                c.Base.ToBeSpawned.Add(b);
+                            }
+                            else
+                            {
+                                MapGeneration.Distributors.ItemDistributor.SpawnPickup(b);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
         if (p == null)
         {
-            return null;
-        }
-
-        p.Transform.SetParent(t0);
-        p.Position = x.Pos;
-        p.Rotation = x.Rot;
-        c.Base.Content.Add(p.Base);
-        if (p.Base is InventorySystem.Items.Pickups.IPickupDistributorTrigger trg)
-        {
-            trg.OnDistributed();
-        }
-
-        if (c.Base.SpawnOnFirstChamberOpening && !v)
-        {
-            c.Base.ToBeSpawned.Add(p.Base);
-        }
-        else
-        {
-            p.Spawn();
+            p = c.AddItem(x.ItemType);
+            if (p == null)
+            {
+                return null;
+            }
         }
 
         ApplyPickupData(p, x);
@@ -678,6 +767,12 @@ public static class Timeline
 
                 c.Base.WasEverOpened = x.WasOpen;
                 c.IsOpen = x.Open;
+            }
+
+            foreach (Locker lk in Locker.List)
+            {
+                MarkLockerFilled(lk);
+                SyncMicroPedestal(lk);
             }
 
             for (int i = 0; i < WorldPickups.Count; i++)
@@ -1041,12 +1136,12 @@ public static class Timeline
             }
         }
 
-        if (!Tracks.TryGetValue(x.PlayerId, out var t) || t.Dummy == null)
+        if (!x.CanOpen)
         {
             return;
         }
 
-        d.ServerInteract(t.Dummy, 0);
+        d.NetworkTargetState = !d.TargetState;
     }
 
     public static void TrackProjectile(ThrownProjectile p, ItemType t, ReferenceHub h)
@@ -1381,6 +1476,18 @@ public static class Timeline
                 live = true;
             }
 
+            while (d < Interacts.Count && Interacts[d].Timestamp <= e)
+            {
+                ReplayInteract(Interacts[d]);
+                d++;
+                live = true;
+            }
+
+            if (d < Interacts.Count)
+            {
+                live = true;
+            }
+
             foreach (ActorTrack t in Tracks.Values)
             {
                 int sf = t.StartFrame < 0 ? 0 : t.StartFrame;
@@ -1586,18 +1693,6 @@ public static class Timeline
 
                 ReplayUse(h, f.InputMask);
                 p[t.PlayerId] = f.InputMask;
-                live = true;
-            }
-
-            while (d < Interacts.Count && Interacts[d].Timestamp <= e)
-            {
-                ReplayInteract(Interacts[d]);
-                d++;
-                live = true;
-            }
-
-            if (d < Interacts.Count)
-            {
                 live = true;
             }
 
