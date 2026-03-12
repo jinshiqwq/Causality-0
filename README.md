@@ -6,117 +6,120 @@
   <img alt="platform" src="https://img.shields.io/badge/platform-SCP%3ASecret%20Laboratory-6f42c1">
   <img alt="api" src="https://img.shields.io/badge/api-LabAPI-2ea44f">
   <img alt="runtime" src="https://img.shields.io/badge/runtime-.NET%20Framework%204.8.1-512bd4">
-  <img alt="protocol" src="https://img.shields.io/badge/protocol-.c0%20V9-0a7ea4">
+  <img alt="protocol" src="https://img.shields.io/badge/protocol-.c0%20V13-0a7ea4">
   <img alt="timeline" src="https://img.shields.io/badge/timeline-deterministic-1f6feb">
-  <img alt="fps" src="https://img.shields.io/badge/fps-dynamic-ffb000">
-  <img alt="downloads" src="https://img.shields.io/github/downloads/MiaoMiao4567/Causality-0/total">
+  <img alt="status" src="https://img.shields.io/badge/status-pre--release-orange">
   <img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0-red">
-  <img alt="status" src="https://img.shields.io/badge/status-experimental-orange">
 </p>
 
 <p align="center">
-  <strong>A deterministic replay engine for SCP:SL rounds.</strong>
+  <strong>A deterministic replay engine for SCP:SL rounds</strong>
 </p>
 
 <p align="center">
-  <em>What vanishes from the server should still remain readable in time.</em>
+  <em>Rounds should remain replayable after they end</em>
 </p>
-
-> A multiplayer round should not disappear the moment it ends.
 
 ---
 
 ## Overview
 
 Causality-0 is a LabAPI-based replay plugin for SCP: Secret Laboratory.
-It records server-side player state into a deterministic timeline, serializes it as a `.c0` replay file, and later reconstructs that round in-game with dummy actors, preserved timing, and seed-aware playback rules.
+It records server-side round state into a deterministic timeline, stores it as a `.c0` binary replay, and reconstructs that round in-game with dummy actors, preserved timing, world-state restoration, and seed-aware playback rules.
 
-It is built less as a spectacle system and more as a way to leave a round behind in a form that can still be revisited.
+The project is focused on reproducibility rather than cinematic approximation.
+Whenever possible, playback restores recorded results directly instead of re-simulating fragile live runtime behavior.
 
 ---
 
-## Current architecture
+## Current capabilities
 
-### ⏱️ Deterministic timeline
+### Deterministic timeline playback
 
-Replay time is driven by frame index and step size instead of wall-clock drift.
-That keeps:
+Replay time is driven by frame index and per-file FPS metadata.
+That keeps actor movement, interactions, projectiles, and optional voice packets aligned to the same timeline.
 
-- actor movement
-- voice packets
-- interaction events
-- projectile motion
+### Actor lifecycle support
 
-bound to the same timeline.
+The replay pipeline now supports:
 
-### 🧟 Native actor playback
+- players who join after recording started
+- players who leave or disconnect before round end
+- role changes during the round
+- death lifecycle events
+- delayed dummy spawning based on track start frame
+- playback despawn on recorded leave
 
-The project does not treat replay as pure transform theater.
-Where possible, it reuses native SCP:SL systems so movement, state, and side effects stay closer to the game’s own rules.
+### World-state persistence
 
-### 💾 `.c0` binary protocol
+The replay format now persists world state beyond actor tracks.
+Current world reconstruction covers:
 
-Current replay protocol version is **V9**.
+- map pickups present at recording start
+- pickup create and remove events
+- pickup movement persistence
+- locker and chamber contents
+- locker/chamber open state restoration on load
 
-It stores:
+### Projectile persistence
+
+Projectile tracks are now written into `.c0` files together with owner information.
+Loaded replays can restore projectile playback without relying on the original live runtime state.
+
+### Deterministic door playback
+
+Door replay now restores the recorded interaction result directly.
+It no longer depends on re-running live permission checks during playback, which improves stability and avoids common pass-through issues.
+
+### Optional voice recording
+
+Voice packet capture is available but now configurable.
+Voice playback still works for replays that already contain saved audio data.
+
+### Seed-aware replay loading
+
+Replay files embed the recording map seed.
+If the loaded replay seed does not match the current round seed, the plugin can force a restart so the replay can be loaded on the correct map seed next round.
+
+---
+
+## `.c0` protocol
+
+Current replay protocol version is **V13**.
+
+It currently stores:
 
 | Field | Notes |
 | --- | --- |
 | Map seed | Used to validate world correctness |
-| Replay FPS | Embedded in the file for playback speed |
-| Actor frames | Position, rotation, item state, stats |
-| Audio packets | Timestamped raw voice payloads |
-| Interaction frames | Door interaction timing |
-| Lifecycle events | Role changes and death events |
-
-### 🌍 Seed-aware playback
-
-Replay is world-sensitive.
-If the replay seed does not match the current map, playback can be blocked or the next round can be scheduled to regenerate with the replay seed.
-
-### ♻️ Lifecycle event stream
-
-An actor track no longer means a single uninterrupted life.
-The replay format now supports:
-
-- role changes
-- death events
-- spectator phases
-- later respawn / reassignment playback
-
----
-
-## Replay lifecycle
-
-```mermaid
-flowchart LR
-    A[Live round] --> B[Record frames and events]
-    B --> C[Deterministic timeline]
-    C --> D[Serialize .c0]
-    D --> E[Load replay]
-    E --> F{Seed matches?}
-    F -- No --> G[Schedule restart with replay seed]
-    F -- Yes --> H[Spawn dummy actors]
-    G --> H
-    H --> I[Apply lifecycle and movement]
-    I --> J[Replay items voice doors projectiles]
-```
+| Replay FPS | Saved in the file and restored on load |
+| Actor tracks | Position, view rotation, movement state, held item, stats |
+| Audio packets | Optional raw voice payloads with timestamps |
+| Interaction frames | Door interaction timing and result |
+| Lifecycle events | Role changes, death, leave/disconnect |
+| World pickups | Initial world pickup snapshot |
+| Pickup ops | Add, move, remove |
+| Locker states | Chamber contents and open state |
+| Locker ops | Recorded locker interaction results |
+| Projectile tracks | Projectile frames and owner id |
 
 ---
 
 ## What is currently recorded
 
-- player position and rotation
+- player position and view rotation
 - movement state and grounded state
-- held item and firearm attachments
-- shooting and reloading intent
-- usable item start / cancel intent
-- health and armor-like values
-- voice packets
-- door interaction timing
-- projectile tracks
-- role-change events
-- death events
+- held item and firearm attachment code
+- shooting and reload intent
+- usable item start and cancel intent
+- HP and AHP-like values
+- optional raw voice packets
+- door interaction timing and result
+- late join and leave lifecycle changes
+- projectile tracks and owner ids
+- world pickups and pickup movement
+- locker/chamber contents and state
+- role changes and death lifecycle events
 
 ---
 
@@ -142,46 +145,90 @@ c0 play
 
 ### Behavior notes
 
-- `load` reads `.c0` metadata, including seed and replay FPS
-- old replay files fall back to a compatibility FPS path
-- playback is blocked if actors are missing
-- playback can be blocked or deferred if the current map seed does not match the replay seed
+- `start` begins a new recording from the current state
+- `save` writes the current replay into `CausalityRecords/<name>.c0`
+- `load` reads seed and FPS metadata before playback
+- `load` rebuilds world state when the replay seed matches the current round
+- if the replay seed does not match the current round, the plugin schedules a restart with the replay seed
+- `play` starts deterministic playback of the loaded or recorded timeline
+- `spawn` can still be used for manual dummy spawning workflows
+
+---
+
+## Configuration
+
+The plugin now supports configuration through `config.yml` in the LabAPI plugin config directory.
+
+Current config entries:
+
+```yml
+default_record_fps: 60
+record_voice: false
+```
+
+### Current config behavior
+
+- `default_record_fps`
+  - sets the default FPS for new recordings
+  - affects new recordings only
+  - does not change the FPS embedded in existing replay files
+
+- `record_voice`
+  - enables or disables saving player voice packets during new recordings
+  - when disabled, replay files still record all non-voice data normally
+  - loading and playing older voice-enabled replays still works
 
 ---
 
 ## Core files
 
 - [Causality0.cs](Causality0.cs)
+- [Causality0Config.cs](Causality0Config.cs)
 - [Core/Timeline.cs](Core/Timeline.cs)
 - [Core/Serializer.cs](Core/Serializer.cs)
 - [Core/ActorTrack.cs](Core/ActorTrack.cs)
+- [Core/ProjectileTrack.cs](Core/ProjectileTrack.cs)
 - [Core/LifecycleEvent.cs](Core/LifecycleEvent.cs)
-- [Core/DamageData.cs](Core/DamageData.cs)
-- [Core/DummyInputWrapper.cs](Core/DummyInputWrapper.cs)
-- [Core/DummyMotorWrapper.cs](Core/DummyMotorWrapper.cs)
+- [Core/WorldData.cs](Core/WorldData.cs)
 - [Command/RemoteAdmin/Causality.cs](Command/RemoteAdmin/Causality.cs)
-- [Event/ServerEvent/MapGenerating.cs](Event/ServerEvent/MapGenerating.cs)
+- [Event/PlayerEvent/Verified.cs](Event/PlayerEvent/Verified.cs)
+- [Event/PlayerEvent/Lifecycle.cs](Event/PlayerEvent/Lifecycle.cs)
 - [Event/PlayerEvent/VoiceChat.cs](Event/PlayerEvent/VoiceChat.cs)
 - [Event/PlayerEvent/Interacting.cs](Event/PlayerEvent/Interacting.cs)
-- [Event/PlayerEvent/Lifecycle.cs](Event/PlayerEvent/Lifecycle.cs)
+- [Event/PlayerEvent/Lockers.cs](Event/PlayerEvent/Lockers.cs)
+- [Event/ServerEvent/Pickups.cs](Event/ServerEvent/Pickups.cs)
+- [Event/ServerEvent/MapGenerating.cs](Event/ServerEvent/MapGenerating.cs)
+
+---
+
+## Current limitations
+
+The project is still pre-release and some systems are still being refined.
+Current known gaps or ongoing work include:
+
+- ragdoll / corpse / death-scene ecosystem persistence
+- some structure-specific restoration edge cases for special lockers and display structures
+- automatic round recording policy and autosave workflow
+- broader interaction replay coverage beyond the current implemented set
 
 ---
 
 ## Roadmap
 
-The next steps should feel like a continuation of the same timeline, not a promise made too far ahead of the code.
-
 - [x] Deterministic replay timing
-- [x] Dynamic replay FPS metadata
+- [x] Replay FPS embedded in replay files
 - [x] Seed-aware replay loading
-- [x] Voice packet capture and playback
-- [x] Door interaction recording and playback
-- [x] Projectile replay path
-- [x] Actor lifecycle event stream
-- [ ] Broaden interaction replay beyond doors
-- [ ] Stabilize death and ragdoll playback edge cases
-- [ ] Improve replay inspection and debugging tools
-- [ ] Add configuration-driven replay policy
+- [x] Late join actor recording and playback
+- [x] Leave/disconnect playback removal
+- [x] Optional voice recording configuration
+- [x] Door interaction recording and deterministic playback
+- [x] Projectile persistence and playback
+- [x] World pickup snapshot and movement persistence
+- [x] Locker/chamber state persistence
+- [ ] Automatic round recording and autosave policy
+- [ ] Ragdoll / corpse persistence
+- [ ] Broader structure-specific world restoration fixes
+- [ ] Replay inspection and debugging tools
 
 ---
 
@@ -194,11 +241,3 @@ The next steps should feel like a continuation of the same timeline, not a promi
 ## License
 
 This project is distributed under the terms of [GNU AGPL v3](LICENSE.txt).
-
----
-
-## Final note
-
-Causality-0 is still experimental.
-But a round may end at the scoreboard, and its causality does not have to end with it.
-This project exists to leave that causality on the server, waiting to be called back in the correct world.
