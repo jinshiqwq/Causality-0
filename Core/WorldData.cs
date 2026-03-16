@@ -66,33 +66,3 @@ public struct PickupOp
     }
 }
 
-public sealed class LockerData
-{
-    public Vector3 Pos { get; set; }
-
-    public byte Id { get; set; }
-
-    public bool Open { get; set; }
-
-    public bool WasOpen { get; set; }
-
-    public List<PickupData> Items { get; } = new List<PickupData>();
-}
-
-public struct LockerOp
-{
-    public float Ts;
-    public Vector3 Pos;
-    public byte Id;
-    public bool Open;
-    public bool CanOpen;
-
-    public LockerOp(float ts, Vector3 pos, byte id, bool open, bool canOpen)
-    {
-        Ts = ts;
-        Pos = pos;
-        Id = id;
-        Open = open;
-        CanOpen = canOpen;
-    }
-}

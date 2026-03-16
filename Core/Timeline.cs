@@ -37,10 +37,6 @@ public static class Timeline
 
     public static List<PickupOp> PickupOps { get; } = new List<PickupOp>();
 
-    public static List<LockerData> LockerStates { get; } = new List<LockerData>();
-
-    public static List<LockerOp> LockerOps { get; } = new List<LockerOp>();
-
     public static int MapSeed { get; set; }
 
     public static int CurrentFps { get; set; } = 60;
@@ -73,6 +69,8 @@ public static class Timeline
 
     private static Dictionary<int, PickupData> _psm = new Dictionary<int, PickupData>();
 
+    private static HashSet<ItemPickupBase> _rw = new HashSet<ItemPickupBase>();
+
     private static int _nextPickupId = 1;
 
     private static bool _wa;
@@ -87,13 +85,12 @@ public static class Timeline
 
     public static void Clear()
     {
+        CleanupReplayWorld();
         Tracks.Clear();
         ProjTracks.Clear();
         Interacts.Clear();
         WorldPickups.Clear();
         PickupOps.Clear();
-        LockerStates.Clear();
-        LockerOps.Clear();
         MapSeed = 0;
         RecordStartTime = 0f;
         RecFrame = 0;
@@ -142,6 +139,7 @@ public static class Timeline
 
     public static void StartRecord(ReferenceHub h)
     {
+        StopPlay();
         StopRecord();
         int fps = global::Causality0.Causality0.Instance?.Config?.DefaultRecordFps ?? 60;
         CurrentFps = Mathf.Clamp(fps, 1, 240);
@@ -203,11 +201,14 @@ public static class Timeline
             return false;
         }
 
-        StopPlay();
+        if (_ph.IsRunning)
+        {
+            Timing.KillCoroutines(_ph);
+        }
+
         RebuildDoors();
         Interacts.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
         PickupOps.Sort((a, b) => a.Ts.CompareTo(b.Ts));
-        LockerOps.Sort((a, b) => a.Ts.CompareTo(b.Ts));
         ProjTracks.Sort((a, b) => a.StartFrame.CompareTo(b.StartFrame));
         _ph = Timing.RunCoroutine(RunPlay());
         return true;
@@ -218,6 +219,82 @@ public static class Timeline
         if (_ph.IsRunning)
         {
             Timing.KillCoroutines(_ph);
+        }
+
+        CleanupReplayWorld();
+    }
+
+    private static void DestroyPickupNow(Pickup p)
+    {
+        if (p?.Base == null || p.IsDestroyed)
+        {
+            return;
+        }
+
+        if (_pim.TryGetValue(p.Base, out int id))
+        {
+            _pim.Remove(p.Base);
+            _ppm.Remove(id);
+            _psm.Remove(id);
+        }
+
+        List<int> ls = null;
+        foreach (KeyValuePair<int, Pickup> kv in _ppm)
+        {
+            if (kv.Value?.Base == p.Base)
+            {
+                ls ??= new List<int>();
+                ls.Add(kv.Key);
+            }
+        }
+
+        if (ls != null)
+        {
+            for (int i = 0; i < ls.Count; i++)
+            {
+                _ppm.Remove(ls[i]);
+                _psm.Remove(ls[i]);
+            }
+        }
+
+        if (NetworkServer.active && p.Base.netId != 0)
+        {
+            NetworkServer.Destroy(p.GameObject);
+        }
+        else
+        {
+            Object.Destroy(p.GameObject);
+        }
+    }
+
+    public static void CleanupReplayWorld()
+    {
+        _wa = true;
+        try
+        {
+            List<Pickup> ls = new List<Pickup>();
+            foreach (ItemPickupBase b in _rw)
+            {
+                Pickup p = Pickup.Get(b);
+                if (p != null)
+                {
+                    ls.Add(p);
+                }
+            }
+
+            for (int i = 0; i < ls.Count; i++)
+            {
+                DestroyPickupNow(ls[i]);
+            }
+
+            _pim.Clear();
+            _ppm.Clear();
+            _psm.Clear();
+        }
+        finally
+        {
+            _rw.Clear();
+            _wa = false;
         }
     }
 
@@ -309,15 +386,13 @@ public static class Timeline
         return true;
     }
 
-    private static void ApplyPickupData(Pickup p, PickupData x)
+    private static void ApplyPickupProps(Pickup p, PickupData x)
     {
         if (p == null || p.IsDestroyed)
         {
             return;
         }
 
-        p.Position = x.Pos;
-        p.Rotation = x.Rot;
         p.IsLocked = x.Locked;
         if (p is LabApi.Features.Wrappers.FirearmPickup fp)
         {
@@ -329,61 +404,28 @@ public static class Timeline
         }
     }
 
+    private static void ApplyPickupData(Pickup p, PickupData x)
+    {
+        if (p == null || p.IsDestroyed)
+        {
+            return;
+        }
+
+        p.Position = x.Pos;
+        p.Rotation = x.Rot;
+        ApplyPickupProps(p, x);
+    }
+
+
     private static void CaptureWorldState()
     {
         WorldPickups.Clear();
         PickupOps.Clear();
-        LockerStates.Clear();
-        LockerOps.Clear();
         HasWorldState = true;
         _pim.Clear();
         _ppm.Clear();
+        _psm.Clear();
         _nextPickupId = 1;
-        foreach (Locker lk in Locker.List)
-        {
-            if (lk == null)
-            {
-                continue;
-            }
-
-            for (int i = 0; i < lk.Chambers.Count; i++)
-            {
-                LockerChamber c = lk.Chambers[i];
-                if (c == null)
-                {
-                    continue;
-                }
-
-                LockerData s = new LockerData
-                {
-                    Pos = lk.Position,
-                    Id = c.Id,
-                    Open = c.IsOpen,
-                    WasOpen = c.Base.WasEverOpened
-                };
-                for (int j = 0; j < c.Base.Content.Count; j++)
-                {
-                    ItemPickupBase b = c.Base.Content[j];
-                    if (b == null)
-                    {
-                        continue;
-                    }
-
-                    Pickup p = Pickup.Get(b);
-                    if (!TryBuildPickupData(p, NextPickupId(), out PickupData x))
-                    {
-                        continue;
-                    }
-
-                    s.Items.Add(x);
-                    RegisterPickup(p, x.Id);
-                    _psm[x.Id] = x;
-                }
-
-                LockerStates.Add(s);
-            }
-        }
-
         foreach (Pickup p in Map.Pickups)
         {
             if (!IsWorldPickup(p) || _pim.ContainsKey(p.Base))
@@ -437,15 +479,6 @@ public static class Timeline
         PickupOps.Add(PickupOp.NewRemove(RecFrame * Step, id));
     }
 
-    public static void TrackLocker(LockerChamber c, bool canOpen)
-    {
-        if (!IsRec || _wa || c == null || c.Locker == null)
-        {
-            return;
-        }
-
-        LockerOps.Add(new LockerOp(RecFrame * Step, c.Locker.Position, c.Id, c.IsOpen, canOpen));
-    }
 
     private static bool PickupChanged(PickupData a, PickupData b)
     {
@@ -493,93 +526,7 @@ public static class Timeline
         }
     }
 
-    private static string LockerKey(Vector3 p, byte id)
-    {
-        int x = Mathf.RoundToInt(p.x * 100f);
-        int y = Mathf.RoundToInt(p.y * 100f);
-        int z = Mathf.RoundToInt(p.z * 100f);
-        return x.ToString() + "|" + y.ToString() + "|" + z.ToString() + "|" + id.ToString();
-    }
 
-    private static bool TryGetLockerChamber(Vector3 p, byte id, out LockerChamber c)
-    {
-        string k = LockerKey(p, id);
-        foreach (Locker lk in Locker.List)
-        {
-            if (lk == null)
-            {
-                continue;
-            }
-
-            for (int i = 0; i < lk.Chambers.Count; i++)
-            {
-                LockerChamber x = lk.Chambers[i];
-                if (x != null && LockerKey(lk.Position, x.Id) == k)
-                {
-                    c = x;
-                    return true;
-                }
-            }
-        }
-
-        c = null;
-        return false;
-    }
-
-    private static void MarkLockerFilled(Locker lk)
-    {
-        if (lk?.Base == null)
-        {
-            return;
-        }
-
-        var f = typeof(MapGeneration.Distributors.Locker).GetField("_serverChambersFilled", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        if (f != null)
-        {
-            f.SetValue(lk.Base, true);
-        }
-    }
-
-    private static void SyncMicroPedestal(Locker lk)
-    {
-        if (lk?.Base is not InventorySystem.Items.MicroHID.MicroHIDPedestal mp || lk.Chambers.Count < 1)
-        {
-            return;
-        }
-
-        InventorySystem.Items.MicroHID.MicroHIDPickup p = null;
-        for (int i = 0; i < lk.Chambers[0].Base.Content.Count; i++)
-        {
-            if (lk.Chambers[0].Base.Content[i] is InventorySystem.Items.MicroHID.MicroHIDPickup x)
-            {
-                p = x;
-                break;
-            }
-        }
-
-        var tf = typeof(InventorySystem.Items.MicroHID.MicroHIDPedestal).GetField("_trackedPickup", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        var ff = typeof(InventorySystem.Items.MicroHID.MicroHIDPedestal).GetField("_isTrackingPickup", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        var hf = typeof(InventorySystem.Items.MicroHID.MicroHIDPedestal).GetField("_hasHidDoorOpened", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        tf?.SetValue(mp, p != null ? p.transform : null);
-        ff?.SetValue(mp, p != null);
-        hf?.SetValue(mp, false);
-        if (p == null)
-        {
-            return;
-        }
-
-        var m = typeof(InventorySystem.Items.MicroHID.MicroHIDPedestal).GetMethod("ReleaseConnectionWithPickup", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        if (m == null)
-        {
-            return;
-        }
-
-        var cb = (System.Action)System.Delegate.CreateDelegate(typeof(System.Action), mp, m, false);
-        if (cb != null)
-        {
-            p.OnSelfDestroyed += cb;
-        }
-    }
 
     private static Pickup SpawnWorldPickup(PickupData x)
     {
@@ -591,147 +538,94 @@ public static class Timeline
 
         p.Spawn();
         ApplyPickupData(p, x);
+        if (p.Base != null)
+        {
+            _rw.Add(p.Base);
+        }
+
         return p;
     }
 
-    private static Pickup SpawnLockerPickup(LockerChamber c, PickupData x, int idx, bool v)
+
+    private static bool TryFindPickupFallback(PickupData x, out Pickup p)
     {
-        Pickup p = null;
-        try
+        p = null;
+        int bs = int.MinValue;
+        float bd = float.MaxValue;
+        foreach (Pickup cur in Map.Pickups)
         {
-            object[] a = { x.ItemType, idx, null, null, null };
-            var m = c.Base.GetType().GetMethod("GetSpawnpoint", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic, null, new[] { typeof(ItemType), typeof(int), typeof(Vector3).MakeByRefType(), typeof(Quaternion).MakeByRefType(), typeof(Transform).MakeByRefType() }, null);
-            if (m != null && InventoryItemLoader.AvailableItems.TryGetValue(x.ItemType, out ItemBase it))
+            if (!IsWorldPickup(cur) || cur.Type != x.ItemType)
             {
-                m.Invoke(c.Base, a);
-                if (a[2] is Vector3 p0 && a[3] is Quaternion r0 && a[4] is Transform t0 && t0 != null)
+                continue;
+            }
+
+            float d = (cur.Position - x.Pos).sqrMagnitude;
+            if (d >= 0.25f)
+            {
+                continue;
+            }
+
+            int s = 0;
+            if (cur.IsLocked == x.Locked)
+            {
+                s++;
+            }
+
+            if (cur is LabApi.Features.Wrappers.FirearmPickup fp)
+            {
+                if (fp.AttachmentCode == x.At)
                 {
-                    ItemPickupBase b = Object.Instantiate(it.PickupDropModel, p0, r0);
-                    if (b != null)
-                    {
-                        b.transform.SetParent(t0);
-                        b.NetworkInfo = new PickupSyncInfo(x.ItemType, it.Weight, 0, locked: true);
-                        c.Base.Content.Add(b);
-                        if (b is InventorySystem.Items.Pickups.IPickupDistributorTrigger trg)
-                        {
-                            trg.OnDistributed();
-                        }
-
-                        if (b.TryGetComponent<Rigidbody>(out var rb))
-                        {
-                            rb.isKinematic = true;
-                            rb.transform.ResetLocalPose();
-                            MapGeneration.Distributors.SpawnablesDistributorBase.BodiesToUnfreeze.Add(rb);
-                        }
-
-                        p = Pickup.Get(b);
-                        if (p != null)
-                        {
-                            if (c.Base.SpawnOnFirstChamberOpening && !v)
-                            {
-                                c.Base.ToBeSpawned.Add(b);
-                            }
-                            else
-                            {
-                                MapGeneration.Distributors.ItemDistributor.SpawnPickup(b);
-                            }
-                        }
-                    }
+                    s += 4;
                 }
             }
-        }
-        catch
-        {
-        }
-
-        if (p == null)
-        {
-            p = c.AddItem(x.ItemType);
-            if (p == null)
+            else if (x.At == 0)
             {
-                return null;
+                s += 2;
+            }
+
+            if (cur is LabApi.Features.Wrappers.AmmoPickup ap)
+            {
+                if (ap.Ammo == x.Am)
+                {
+                    s += 4;
+                }
+            }
+            else if (x.Am == 0)
+            {
+                s += 2;
+            }
+
+            if (s > bs || (s == bs && d < bd))
+            {
+                p = cur;
+                bs = s;
+                bd = d;
             }
         }
 
-        ApplyPickupData(p, x);
-        if (!v)
+        return p != null;
+    }
+
+    private static bool TryGetPickupForOp(int id, PickupData x, out Pickup p)
+    {
+        if (_ppm.TryGetValue(id, out p) && p != null && !p.IsDestroyed)
         {
-            p.IsLocked = true;
+            return true;
         }
 
-        return p;
+        if (TryFindPickupFallback(x, out p))
+        {
+            RegisterPickup(p, id);
+            _psm[id] = x;
+            return true;
+        }
+
+        return false;
     }
 
     private static void ClearWorldState()
     {
-        HashSet<ItemPickupBase> hs = new HashSet<ItemPickupBase>();
-        foreach (Locker lk in Locker.List)
-        {
-            if (lk == null)
-            {
-                continue;
-            }
-
-            for (int i = 0; i < lk.Chambers.Count; i++)
-            {
-                LockerChamber c = lk.Chambers[i];
-                if (c == null)
-                {
-                    continue;
-                }
-
-                for (int j = 0; j < c.Base.Content.Count; j++)
-                {
-                    ItemPickupBase b = c.Base.Content[j];
-                    if (b != null)
-                    {
-                        hs.Add(b);
-                    }
-                }
-            }
-        }
-
-        foreach (Locker lk in Locker.List)
-        {
-            if (lk == null)
-            {
-                continue;
-            }
-
-            lk.ClearAllChambers();
-            for (int i = 0; i < lk.Chambers.Count; i++)
-            {
-                LockerChamber c = lk.Chambers[i];
-                if (c == null)
-                {
-                    continue;
-                }
-
-                c.Base.ToBeSpawned.Clear();
-                c.Base.WasEverOpened = false;
-                c.IsOpen = false;
-            }
-        }
-
-        List<Pickup> ls = new List<Pickup>();
-        foreach (Pickup p in Map.Pickups)
-        {
-            if (p?.Base == null || hs.Contains(p.Base))
-            {
-                continue;
-            }
-
-            ls.Add(p);
-        }
-
-        for (int i = 0; i < ls.Count; i++)
-        {
-            ls[i].Destroy();
-        }
-
-        _pim.Clear();
-        _ppm.Clear();
-        _psm.Clear();
+        CleanupReplayWorld();
     }
 
     public static void ApplyWorldState()
@@ -745,34 +639,18 @@ public static class Timeline
         try
         {
             ClearWorldState();
-            for (int i = 0; i < LockerStates.Count; i++)
+            List<Pickup> ls = new List<Pickup>();
+            foreach (Pickup p in Map.Pickups)
             {
-                LockerData x = LockerStates[i];
-                if (!TryGetLockerChamber(x.Pos, x.Id, out LockerChamber c) || c == null)
+                if (IsWorldPickup(p))
                 {
-                    continue;
+                    ls.Add(p);
                 }
-
-                bool v = x.WasOpen || x.Open;
-                c.IsOpen = v;
-                c.Base.WasEverOpened = v;
-                for (int j = 0; j < x.Items.Count; j++)
-                {
-                    Pickup p = SpawnLockerPickup(c, x.Items[j], j, v);
-                    if (p != null)
-                    {
-                        RegisterPickup(p, x.Items[j].Id);
-                    }
-                }
-
-                c.Base.WasEverOpened = x.WasOpen;
-                c.IsOpen = x.Open;
             }
 
-            foreach (Locker lk in Locker.List)
+            for (int i = 0; i < ls.Count; i++)
             {
-                MarkLockerFilled(lk);
-                SyncMicroPedestal(lk);
+                DestroyPickupNow(ls[i]);
             }
 
             for (int i = 0; i < WorldPickups.Count; i++)
@@ -781,6 +659,7 @@ public static class Timeline
                 if (p != null)
                 {
                     RegisterPickup(p, WorldPickups[i].Id);
+                    _psm[WorldPickups[i].Id] = WorldPickups[i];
                 }
             }
         }
@@ -794,7 +673,17 @@ public static class Timeline
     {
         if (x.Act == PickupAct.Remove)
         {
-            if (_ppm.TryGetValue(x.Id, out Pickup p0) && p0 != null)
+            Pickup p0 = null;
+            if (_ppm.TryGetValue(x.Id, out Pickup cur) && cur != null && !cur.IsDestroyed)
+            {
+                p0 = cur;
+            }
+            else if (_psm.TryGetValue(x.Id, out PickupData d))
+            {
+                TryFindPickupFallback(d, out p0);
+            }
+
+            if (p0 != null)
             {
                 if (p0.Base != null)
                 {
@@ -805,11 +694,16 @@ public static class Timeline
                 _psm.Remove(x.Id);
                 p0.Destroy();
             }
+            else
+            {
+                _ppm.Remove(x.Id);
+                _psm.Remove(x.Id);
+            }
 
             return;
         }
 
-        if (_ppm.TryGetValue(x.Id, out Pickup p1) && p1 != null)
+        if (TryGetPickupForOp(x.Id, x.Data, out Pickup p1))
         {
             ApplyPickupData(p1, x.Data);
             _psm[x.Id] = x.Data;
@@ -824,33 +718,15 @@ public static class Timeline
         }
     }
 
-    private static void ApplyLockerOp(LockerOp x)
-    {
-        if (TryGetLockerChamber(x.Pos, x.Id, out LockerChamber c) && c != null)
-        {
-            if (!x.CanOpen)
-            {
-                c.PlayDeniedSound(DoorPermissionFlags.None);
-                return;
-            }
 
-            if (x.Open)
-            {
-                c.Base.WasEverOpened = true;
-            }
-
-            c.IsOpen = x.Open;
-        }
-    }
-
-    public static void TrackInteract(int id, byte doorId, byte act, bool canOpen)
+    public static void TrackInteract(int id, byte doorId, byte act, bool canOpen, Vector3 pos)
     {
         if (!IsRec || !Tracks.ContainsKey(id))
         {
             return;
         }
 
-        Interacts.Add(new InteractFrame(RecFrame * Step, id, doorId, act, canOpen));
+        Interacts.Add(new InteractFrame(RecFrame * Step, id, doorId, act, canOpen, pos, true));
     }
 
     public static void TrackLifecycleRole(int id, RoleTypeId r)
@@ -1127,12 +1003,35 @@ public static class Timeline
 
     private static void ReplayInteract(InteractFrame x)
     {
-        if (!_dm.TryGetValue(x.DoorId, out var d) || d == null)
+        DoorVariant d = null;
+        if (x.HasPos)
         {
-            RebuildDoors();
+            float best = float.MaxValue;
+            foreach (DoorVariant cur in DoorVariant.AllDoors)
+            {
+                if (cur == null)
+                {
+                    continue;
+                }
+
+                float v = (cur.transform.position - x.Pos).sqrMagnitude;
+                if (v < best)
+                {
+                    best = v;
+                    d = cur;
+                }
+            }
+        }
+
+        if (d == null)
+        {
             if (!_dm.TryGetValue(x.DoorId, out d) || d == null)
             {
-                return;
+                RebuildDoors();
+                if (!_dm.TryGetValue(x.DoorId, out d) || d == null)
+                {
+                    return;
+                }
             }
         }
 
@@ -1417,7 +1316,6 @@ public static class Timeline
 
         int i = 0;
         int d = 0;
-        int k = 0;
         int w = 0;
         while (true)
         {
@@ -1450,18 +1348,6 @@ public static class Timeline
                     DetonateProjectileTrack(tr);
                     live = true;
                 }
-            }
-
-            while (k < LockerOps.Count && LockerOps[k].Ts <= e)
-            {
-                ApplyLockerOp(LockerOps[k]);
-                k++;
-                live = true;
-            }
-
-            if (k < LockerOps.Count)
-            {
-                live = true;
             }
 
             while (w < PickupOps.Count && PickupOps[w].Ts <= e)
@@ -1698,6 +1584,7 @@ public static class Timeline
 
             if (!live)
             {
+                CleanupReplayWorld();
                 yield break;
             }
 

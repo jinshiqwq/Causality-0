@@ -6,9 +6,9 @@
   <img alt="platform" src="https://img.shields.io/badge/platform-SCP%3ASecret%20Laboratory-6f42c1">
   <img alt="api" src="https://img.shields.io/badge/api-LabAPI-2ea44f">
   <img alt="runtime" src="https://img.shields.io/badge/runtime-.NET%20Framework%204.8.1-512bd4">
-  <img alt="protocol" src="https://img.shields.io/badge/protocol-.c0%20V13-0a7ea4">
+  <img alt="protocol" src="https://img.shields.io/badge/protocol-.c0%20V16-0a7ea4">
   <img alt="timeline" src="https://img.shields.io/badge/timeline-deterministic-1f6feb">
-  <img alt="status" src="https://img.shields.io/badge/status-pre--release-orange">
+  <img alt="status" src="https://img.shields.io/badge/status-release-brightgreen">
   <img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0-red">
 </p>
 
@@ -25,8 +25,9 @@
 ## 项目概述
 
 Causality-0 是一个基于 LabAPI 的 SCP:SL 服务端回放插件
-它会把回合中的服务器侧状态录制成确定性时间线，保存为 `.c0` 二进制回放文件，并在之后通过 Dummy、世界状态重建与种子校验把整局重新带回服务器中
+它会把回合中的服务器侧状态录制成确定性时间线，保存为 `.c0` 二进制回放文件，并在之后通过 Dummy、时间线还原、世界状态重建与种子校验把整局重新带回服务器中
 
+当前稳定正式版为 **V1.0.1**
 这个项目更关心可复现性，而不是只做一层表面演出
 只要能稳定恢复录制结果，就尽量不去依赖脆弱的实时再模拟
 
@@ -58,8 +59,8 @@ Causality-0 是一个基于 LabAPI 的 SCP:SL 服务端回放插件
 - 录制开始时地图上的掉落物快照
 - 掉落物创建与移除事件
 - 掉落物位移持久化
-- locker 与 chamber 内物品内容
-- load 后柜体与腔室开关状态恢复
+- 回放重建前的 pickup 清理
+- 按录制的类型、坐标、旋转与物品属性进行纯世界掉落物重建
 
 ### 投掷物持久化
 
@@ -69,7 +70,12 @@ Causality-0 是一个基于 LabAPI 的 SCP:SL 服务端回放插件
 ### 门的确定性回放
 
 门交互回放现在优先恢复录制结果本身
-不再依赖回放时重新跑一次实时权限判定，因此稳定性更高，也避免了常见的穿门现象
+load 后也会利用录制的空间信息改进门匹配稳定性
+
+### 回放压缩
+
+回放文件现在支持原始保存或 Lzma 压缩保存
+加载时会自动识别这两种格式
 
 ### 可选语音录制
 
@@ -85,7 +91,7 @@ Causality-0 是一个基于 LabAPI 的 SCP:SL 服务端回放插件
 
 ## `.c0` 协议
 
-当前回放协议版本为 **V13**
+当前回放协议版本为 **V16**
 
 当前保存内容包括：
 
@@ -95,13 +101,13 @@ Causality-0 是一个基于 LabAPI 的 SCP:SL 服务端回放插件
 | 回放 FPS | 会写入文件并在加载时恢复 |
 | 角色轨道 | 位置、视角旋转、移动状态、持物、数值 |
 | 语音包 | 可选原始语音负载与时间戳 |
-| 交互帧 | 当前已实现的门交互时间点与结果 |
+| 交互帧 | 门交互时间点、结果与录制空间信息 |
 | 生命周期事件 | 角色切换、死亡、离开/断线 |
-| 世界掉落物 | 录制开始时的掉落物快照 |
+| 世界掉落物 | 初始掉落物快照与绝对变换、物品状态 |
 | 掉落物操作流 | 创建、位移、移除 |
-| 柜体状态 | chamber 内容与开关状态 |
-| 柜体操作流 | 录制到的柜体交互结果 |
 | 投掷物轨道 | 投掷物逐帧数据与所有者 id |
+
+当前回放文件同时支持原始封装和 Lzma 封装，加载时会自动识别
 
 ---
 
@@ -114,11 +120,10 @@ Causality-0 是一个基于 LabAPI 的 SCP:SL 服务端回放插件
 - 消耗品开始与取消使用输入
 - HP 与 AHP 类数值
 - 可选原始语音包
-- 门交互时间点与结果
+- 门交互时间点、结果与录制门位置上下文
 - 中途加入与离开生命周期变化
 - 投掷物轨迹与所有者 id
-- 世界掉落物与掉落物位移
-- locker / chamber 内容与状态
+- 世界掉落物、掉落物创建与移除、掉落物位移
 - 角色切换与死亡生命周期事件
 
 ---
@@ -164,6 +169,8 @@ c0 play
 ```yml
 default_record_fps: 60
 record_voice: false
+replay_compression: Lzma
+replay_compression_preset: Normal
 ```
 
 ### 当前配置行为
@@ -177,6 +184,14 @@ record_voice: false
   - 控制是否在新录制中保存玩家语音包
   - 关闭后，非语音数据仍会正常录制
   - 旧的含语音回放文件仍可正常加载与播放
+
+- `replay_compression`
+  - 为新的保存选择 `None` 或 `Lzma`
+  - 加载时会自动识别原始回放文件和压缩回放文件
+
+- `replay_compression_preset`
+  - 调整新的压缩保存所使用的编码档位
+  - 当前只影响 `Lzma`
 
 ---
 
@@ -195,7 +210,6 @@ record_voice: false
 - [Event/PlayerEvent/Lifecycle.cs](Event/PlayerEvent/Lifecycle.cs)
 - [Event/PlayerEvent/VoiceChat.cs](Event/PlayerEvent/VoiceChat.cs)
 - [Event/PlayerEvent/Interacting.cs](Event/PlayerEvent/Interacting.cs)
-- [Event/PlayerEvent/Lockers.cs](Event/PlayerEvent/Lockers.cs)
 - [Event/ServerEvent/Pickups.cs](Event/ServerEvent/Pickups.cs)
 - [Event/ServerEvent/MapGenerating.cs](Event/ServerEvent/MapGenerating.cs)
 
@@ -203,13 +217,13 @@ record_voice: false
 
 ## 当前限制
 
-项目目前仍处于预发布阶段
+项目已经发布 V1.0.1 正式版，但以下系统仍在继续扩展
 当前已知仍在继续完善的部分包括：
 
 - 尸体 / 布娃娃 / 死亡现场生态持久化
-- 某些特殊柜体与展台结构的专用恢复边界情况
 - 自动录制整局与 autosave 策略
-- 更广范围的世界交互回放覆盖
+- 更广范围的交互回放覆盖
+- 专门的回放检查与调试工具
 
 ---
 
@@ -222,12 +236,12 @@ record_voice: false
 - [x] 离开 / 断线退场回放
 - [x] 可配置语音录制开关
 - [x] 门交互录制与确定性回放
+- [x] 回放压缩支持 None 与 Lzma
 - [x] 投掷物持久化与回放
-- [x] 世界掉落物快照与位移持久化
-- [x] locker / chamber 状态持久化
+- [x] 纯世界掉落物快照与位移持久化
 - [ ] 自动整局录制与 autosave 策略
 - [ ] 尸体 / 布娃娃持久化
-- [ ] 更多特殊结构世界恢复修复
+- [ ] 更广范围的交互回放覆盖
 - [ ] 回放检查与调试工具
 
 ---

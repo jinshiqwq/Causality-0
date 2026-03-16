@@ -51,7 +51,7 @@ public sealed class VoiceChat
 
         byte[] data = new byte[n];
         Array.Copy(src, 0, data, 0, n);
-        float ts = Timeline.RecFrame * Timeline.Step;
+        float ts = Time.time - Timeline.RecordStartTime;
         if (ts < 0f)
         {
             ts = 0f;

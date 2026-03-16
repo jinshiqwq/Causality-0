@@ -1,6 +1,8 @@
 using System;
 using Causality0.Event.PlayerEvent;
 using Causality0.Event.ServerEvent;
+using LabApi.Events.Arguments.ServerEvents;
+using LabApi.Events.Handlers;
 using LabApi.Features;
 using LabApi.Loader.Features.Plugins;
 
@@ -28,8 +30,6 @@ public sealed class Causality0 : Plugin<Causality0Config>
 
     public Interacting InteractingEvent { get; } = new();
 
-    public Lockers LockersEvent { get; } = new();
-
     public Lifecycle LifecycleEvent { get; } = new();
 
     public override string Name { get; } = "Causality-0";
@@ -56,6 +56,9 @@ public sealed class Causality0 : Plugin<Causality0Config>
         }
 
         Core.Timeline.CurrentFps = fps;
+        ServerEvents.WaitingForPlayers += OnWaitingForPlayers;
+        ServerEvents.RoundRestarted += OnRoundRestarted;
+        ServerEvents.RoundEnded += OnRoundEnded;
         ServerEvent.Enable();
         PickupEvent.Enable();
         VerifiedEvent.Enable();
@@ -65,14 +68,14 @@ public sealed class Causality0 : Plugin<Causality0Config>
         VoiceChatEvent.Enable();
         ThrowingEvent.Enable();
         InteractingEvent.Enable();
-        LockersEvent.Enable();
         LifecycleEvent.Enable();
     }
 
     public override void Disable()
     {
+        Core.Timeline.StopPlay();
+        Core.Timeline.CleanupReplayWorld();
         LifecycleEvent.Disable();
-        LockersEvent.Disable();
         InteractingEvent.Disable();
         ThrowingEvent.Disable();
         VoiceChatEvent.Disable();
@@ -82,9 +85,30 @@ public sealed class Causality0 : Plugin<Causality0Config>
         VerifiedEvent.Disable();
         PickupEvent.Disable();
         ServerEvent.Disable();
+        ServerEvents.RoundEnded -= OnRoundEnded;
+        ServerEvents.RoundRestarted -= OnRoundRestarted;
+        ServerEvents.WaitingForPlayers -= OnWaitingForPlayers;
         if (ReferenceEquals(Instance, this))
         {
             Instance = null;
         }
+    }
+
+    private void OnWaitingForPlayers()
+    {
+        Core.Timeline.StopPlay();
+        Core.Timeline.CleanupReplayWorld();
+    }
+
+    private void OnRoundRestarted()
+    {
+        Core.Timeline.StopPlay();
+        Core.Timeline.CleanupReplayWorld();
+    }
+
+    private void OnRoundEnded(RoundEndedEventArgs ev)
+    {
+        Core.Timeline.StopPlay();
+        Core.Timeline.CleanupReplayWorld();
     }
 }

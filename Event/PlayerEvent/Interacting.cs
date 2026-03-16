@@ -23,6 +23,6 @@ public sealed class Interacting
             return;
         }
 
-        Timeline.TrackInteract(ev.Player.ReferenceHub.PlayerId, ev.Door.Base.DoorId, 1, ev.CanOpen);
+        Timeline.TrackInteract(ev.Player.ReferenceHub.PlayerId, ev.Door.Base.DoorId, 1, ev.CanOpen, ev.Door.Base.transform.position);
     }
 }

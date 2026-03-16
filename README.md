@@ -6,9 +6,9 @@
   <img alt="platform" src="https://img.shields.io/badge/platform-SCP%3ASecret%20Laboratory-6f42c1">
   <img alt="api" src="https://img.shields.io/badge/api-LabAPI-2ea44f">
   <img alt="runtime" src="https://img.shields.io/badge/runtime-.NET%20Framework%204.8.1-512bd4">
-  <img alt="protocol" src="https://img.shields.io/badge/protocol-.c0%20V13-0a7ea4">
+  <img alt="protocol" src="https://img.shields.io/badge/protocol-.c0%20V16-0a7ea4">
   <img alt="timeline" src="https://img.shields.io/badge/timeline-deterministic-1f6feb">
-  <img alt="status" src="https://img.shields.io/badge/status-pre--release-orange">
+  <img alt="status" src="https://img.shields.io/badge/status-release-brightgreen">
   <img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0-red">
 </p>
 
@@ -27,6 +27,7 @@
 Causality-0 is a LabAPI-based replay plugin for SCP: Secret Laboratory.
 It records server-side round state into a deterministic timeline, stores it as a `.c0` binary replay, and reconstructs that round in-game with dummy actors, preserved timing, world-state restoration, and seed-aware playback rules.
 
+Current stable release is **V1.0.1**.
 The project is focused on reproducibility rather than cinematic approximation.
 Whenever possible, playback restores recorded results directly instead of re-simulating fragile live runtime behavior.
 
@@ -58,8 +59,8 @@ Current world reconstruction covers:
 - map pickups present at recording start
 - pickup create and remove events
 - pickup movement persistence
-- locker and chamber contents
-- locker/chamber open state restoration on load
+- scorched-earth pickup cleanup before replay rebuild
+- pure world pickup recreation from recorded type, position, rotation, and item properties
 
 ### Projectile persistence
 
@@ -69,11 +70,16 @@ Loaded replays can restore projectile playback without relying on the original l
 ### Deterministic door playback
 
 Door replay now restores the recorded interaction result directly.
-It no longer depends on re-running live permission checks during playback, which improves stability and avoids common pass-through issues.
+Loaded replays also use recorded spatial context to improve post-load door matching stability.
+
+### Replay compression
+
+Replay files can now be saved as raw or Lzma-compressed payloads.
+Loading auto-detects both formats.
 
 ### Optional voice recording
 
-Voice packet capture is available but now configurable.
+Voice packet capture is available but configurable.
 Voice playback still works for replays that already contain saved audio data.
 
 ### Seed-aware replay loading
@@ -85,7 +91,7 @@ If the loaded replay seed does not match the current round seed, the plugin can 
 
 ## `.c0` protocol
 
-Current replay protocol version is **V13**.
+Current replay protocol version is **V16**.
 
 It currently stores:
 
@@ -95,13 +101,13 @@ It currently stores:
 | Replay FPS | Saved in the file and restored on load |
 | Actor tracks | Position, view rotation, movement state, held item, stats |
 | Audio packets | Optional raw voice payloads with timestamps |
-| Interaction frames | Door interaction timing and result |
+| Interaction frames | Door timing, result, and recorded spatial context |
 | Lifecycle events | Role changes, death, leave/disconnect |
-| World pickups | Initial world pickup snapshot |
+| World pickups | Initial world pickup snapshot with absolute transform and item state |
 | Pickup ops | Add, move, remove |
-| Locker states | Chamber contents and open state |
-| Locker ops | Recorded locker interaction results |
 | Projectile tracks | Projectile frames and owner id |
+
+Replay save containers currently support raw and Lzma envelopes, and load auto-detects them.
 
 ---
 
@@ -114,11 +120,10 @@ It currently stores:
 - usable item start and cancel intent
 - HP and AHP-like values
 - optional raw voice packets
-- door interaction timing and result
+- door interaction timing, result, and recorded door position context
 - late join and leave lifecycle changes
 - projectile tracks and owner ids
-- world pickups and pickup movement
-- locker/chamber contents and state
+- world pickups, pickup creation and removal, and pickup movement
 - role changes and death lifecycle events
 
 ---
@@ -164,6 +169,8 @@ Current config entries:
 ```yml
 default_record_fps: 60
 record_voice: false
+replay_compression: Lzma
+replay_compression_preset: Normal
 ```
 
 ### Current config behavior
@@ -177,6 +184,14 @@ record_voice: false
   - enables or disables saving player voice packets during new recordings
   - when disabled, replay files still record all non-voice data normally
   - loading and playing older voice-enabled replays still works
+
+- `replay_compression`
+  - chooses `None` or `Lzma` for new saves
+  - loading auto-detects both raw and compressed replay files
+
+- `replay_compression_preset`
+  - tunes encoder settings for new compressed saves
+  - currently affects only `Lzma`
 
 ---
 
@@ -195,7 +210,6 @@ record_voice: false
 - [Event/PlayerEvent/Lifecycle.cs](Event/PlayerEvent/Lifecycle.cs)
 - [Event/PlayerEvent/VoiceChat.cs](Event/PlayerEvent/VoiceChat.cs)
 - [Event/PlayerEvent/Interacting.cs](Event/PlayerEvent/Interacting.cs)
-- [Event/PlayerEvent/Lockers.cs](Event/PlayerEvent/Lockers.cs)
 - [Event/ServerEvent/Pickups.cs](Event/ServerEvent/Pickups.cs)
 - [Event/ServerEvent/MapGenerating.cs](Event/ServerEvent/MapGenerating.cs)
 
@@ -203,13 +217,13 @@ record_voice: false
 
 ## Current limitations
 
-The project is still pre-release and some systems are still being refined.
+The project now has a formal V1.0.1 release, but some systems are still expanding.
 Current known gaps or ongoing work include:
 
 - ragdoll / corpse / death-scene ecosystem persistence
-- some structure-specific restoration edge cases for special lockers and display structures
 - automatic round recording policy and autosave workflow
 - broader interaction replay coverage beyond the current implemented set
+- dedicated replay inspection and debugging tools
 
 ---
 
@@ -222,12 +236,12 @@ Current known gaps or ongoing work include:
 - [x] Leave/disconnect playback removal
 - [x] Optional voice recording configuration
 - [x] Door interaction recording and deterministic playback
+- [x] Replay compression with None and Lzma
 - [x] Projectile persistence and playback
-- [x] World pickup snapshot and movement persistence
-- [x] Locker/chamber state persistence
+- [x] Pure world pickup snapshot and movement persistence
 - [ ] Automatic round recording and autosave policy
 - [ ] Ragdoll / corpse persistence
-- [ ] Broader structure-specific world restoration fixes
+- [ ] Broader interaction replay coverage
 - [ ] Replay inspection and debugging tools
 
 ---

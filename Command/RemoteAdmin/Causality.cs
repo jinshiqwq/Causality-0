@@ -237,7 +237,8 @@ public sealed class Load : ICommand
         string p = Path.Combine("CausalityRecords", arguments.At(0) + ".c0");
         if (!Serializer.Load(p))
         {
-            response = "Load failed.";
+            string s = Serializer.LastErr;
+            response = string.IsNullOrWhiteSpace(s) ? "Load failed." : $"Load failed: {s}";
             return false;
         }
 

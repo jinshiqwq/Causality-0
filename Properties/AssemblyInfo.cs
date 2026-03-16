@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("Causality-0")]
-[assembly: AssemblyDescription("V1.0.1pre")]
+[assembly: AssemblyDescription("V1.0.1")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("Causality-0")]
