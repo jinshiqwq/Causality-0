@@ -23,6 +23,12 @@ public sealed class Reloading
             return;
         }
 
-        Timeline.MarkInput(ev.Player.ReferenceHub.PlayerId, Timeline.InputReload);
+        ReferenceHub h = ev.Player.ReferenceHub;
+        if (h == null || h.authManager?.DoNotTrack == true)
+        {
+            return;
+        }
+
+        Timeline.MarkInput(h.PlayerId, Timeline.InputReload);
     }
 }

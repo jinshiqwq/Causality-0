@@ -23,6 +23,12 @@ public sealed class Verified
             return;
         }
 
-        Timeline.TrackActor(ev.Player.ReferenceHub);
+        ReferenceHub h = ev.Player.ReferenceHub;
+        if (h == null || h.authManager?.DoNotTrack == true)
+        {
+            return;
+        }
+
+        Timeline.TrackActor(h);
     }
 }

@@ -27,7 +27,7 @@ public sealed class VoiceChat
         }
 
         ref VoiceMessage m = ref ev.Message;
-        if (m.SpeakerNull || m.Speaker == null)
+        if (m.SpeakerNull || m.Speaker == null || m.Speaker.authManager?.DoNotTrack == true)
         {
             return;
         }

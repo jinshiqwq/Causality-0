@@ -27,7 +27,7 @@
 Causality-0 is a LabAPI-based replay plugin for SCP: Secret Laboratory.
 It records server-side round state into a deterministic timeline, stores it as a `.c0` binary replay, and reconstructs that round in-game with dummy actors, preserved timing, world-state restoration, and seed-aware playback rules.
 
-Current stable release is **V1.0.1**.
+Current stable release is **V1.0.2**.
 The project is focused on reproducibility rather than cinematic approximation.
 Whenever possible, playback restores recorded results directly instead of re-simulating fragile live runtime behavior.
 
@@ -217,7 +217,7 @@ replay_compression_preset: Normal
 
 ## Current limitations
 
-The project now has a formal V1.0.1 release, but some systems are still expanding.
+The project now has a formal V1.0.2 release, but some systems are still expanding.
 Current known gaps or ongoing work include:
 
 - ragdoll / corpse / death-scene ecosystem persistence

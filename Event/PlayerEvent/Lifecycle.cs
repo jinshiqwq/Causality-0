@@ -27,7 +27,13 @@ public sealed class Lifecycle
             return;
         }
 
-        Timeline.TrackLifecycleRole(ev.Player.ReferenceHub.PlayerId, ev.NewRole.RoleTypeId);
+        ReferenceHub h = ev.Player.ReferenceHub;
+        if (h == null || h.authManager?.DoNotTrack == true)
+        {
+            return;
+        }
+
+        Timeline.TrackLifecycleRole(h.PlayerId, ev.NewRole.RoleTypeId);
     }
 
     private void OnDying(PlayerDyingEventArgs ev)
@@ -37,7 +43,13 @@ public sealed class Lifecycle
             return;
         }
 
-        Timeline.TrackLifecycleDeath(ev.Player.ReferenceHub.PlayerId, ev.DamageHandler);
+        ReferenceHub h = ev.Player.ReferenceHub;
+        if (h == null || h.authManager?.DoNotTrack == true)
+        {
+            return;
+        }
+
+        Timeline.TrackLifecycleDeath(h.PlayerId, ev.DamageHandler);
     }
 
     private void OnLeft(PlayerLeftEventArgs ev)
@@ -47,6 +59,12 @@ public sealed class Lifecycle
             return;
         }
 
-        Timeline.TrackLifecycleLeft(ev.Player.ReferenceHub.PlayerId);
+        ReferenceHub h = ev.Player.ReferenceHub;
+        if (h == null || h.authManager?.DoNotTrack == true)
+        {
+            return;
+        }
+
+        Timeline.TrackLifecycleLeft(h.PlayerId);
     }
 }

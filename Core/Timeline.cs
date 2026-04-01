@@ -119,9 +119,14 @@ public static class Timeline
         }
     }
 
+    private static bool CanRec(ReferenceHub h)
+    {
+        return h != null && !h.isLocalPlayer && h.PlayerId != 0 && (h.authManager == null || !h.authManager.DoNotTrack);
+    }
+
     public static void TrackActor(ReferenceHub h)
     {
-        if (!IsRec || h == null || h.isLocalPlayer || h.PlayerId == 0 || Tracks.ContainsKey(h.PlayerId))
+        if (!IsRec || !CanRec(h) || Tracks.ContainsKey(h.PlayerId))
         {
             return;
         }
@@ -154,7 +159,7 @@ public static class Timeline
         _dm.Clear();
         foreach (ReferenceHub hub in ReferenceHub.AllHubs)
         {
-            if (hub == null || hub.isLocalPlayer || hub.PlayerId == 0)
+            if (!CanRec(hub))
             {
                 continue;
             }
@@ -1045,7 +1050,7 @@ public static class Timeline
 
     public static void TrackProjectile(ThrownProjectile p, ItemType t, ReferenceHub h)
     {
-        if (!IsRec || p == null || h == null)
+        if (!IsRec || p == null || !CanRec(h) || !Tracks.ContainsKey(h.PlayerId))
         {
             return;
         }

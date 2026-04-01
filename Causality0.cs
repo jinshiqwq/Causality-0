@@ -38,7 +38,7 @@ public sealed class Causality0 : Plugin<Causality0Config>
 
     public override string Author { get; } = "MiaoMiao";
 
-    public override Version Version { get; } = new(1, 0, 1);
+    public override Version Version { get; } = new(1, 0, 2);
 
     public override Version RequiredApiVersion { get; } = new(LabApiProperties.CompiledVersion);
 

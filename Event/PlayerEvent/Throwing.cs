@@ -33,6 +33,12 @@ public sealed class Throwing
             return;
         }
 
-        Timeline.TrackProjectile(ev.Projectile.Base, ev.ThrowableItem.Base.ItemTypeId, ev.Player.ReferenceHub);
+        ReferenceHub h = ev.Player.ReferenceHub;
+        if (h == null || h.authManager?.DoNotTrack == true)
+        {
+            return;
+        }
+
+        Timeline.TrackProjectile(ev.Projectile.Base, ev.ThrowableItem.Base.ItemTypeId, h);
     }
 }

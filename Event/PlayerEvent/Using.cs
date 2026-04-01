@@ -25,7 +25,13 @@ public sealed class Using
             return;
         }
 
-        Timeline.MarkInput(ev.Player.ReferenceHub.PlayerId, Timeline.InputUse);
+        ReferenceHub h = ev.Player.ReferenceHub;
+        if (h == null || h.authManager?.DoNotTrack == true)
+        {
+            return;
+        }
+
+        Timeline.MarkInput(h.PlayerId, Timeline.InputUse);
     }
 
     private void OnCancellingUsingItem(PlayerCancellingUsingItemEventArgs ev)
@@ -35,6 +41,12 @@ public sealed class Using
             return;
         }
 
-        Timeline.MarkInput(ev.Player.ReferenceHub.PlayerId, Timeline.InputUseCancel);
+        ReferenceHub h = ev.Player.ReferenceHub;
+        if (h == null || h.authManager?.DoNotTrack == true)
+        {
+            return;
+        }
+
+        Timeline.MarkInput(h.PlayerId, Timeline.InputUseCancel);
     }
 }

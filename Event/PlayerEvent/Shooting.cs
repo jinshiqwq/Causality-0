@@ -23,6 +23,12 @@ public sealed class Shooting
             return;
         }
 
-        Timeline.MarkInput(ev.Player.ReferenceHub.PlayerId, Timeline.InputShoot);
+        ReferenceHub h = ev.Player.ReferenceHub;
+        if (h == null || h.authManager?.DoNotTrack == true)
+        {
+            return;
+        }
+
+        Timeline.MarkInput(h.PlayerId, Timeline.InputShoot);
     }
 }
