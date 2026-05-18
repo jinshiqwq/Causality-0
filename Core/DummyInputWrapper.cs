@@ -1,77 +1,79 @@
-using System.Reflection;
+﻿using System.Reflection;
 using InventorySystem;
 using InventorySystem.Items.Autosync;
 using NetworkManagerUtils.Dummies;
 using UnityEngine;
 
-namespace Causality0.Core;
-
-public sealed class DummyInputWrapper : MonoBehaviour
+namespace Causality0.Core
 {
-    private static readonly FieldInfo _f = typeof(AutosyncItem).GetField("_dummyEmulator", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
-    private static readonly MethodInfo _am = typeof(DummyKeyEmulator).GetMethod("AddEntry", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new[] { typeof(ActionName), typeof(bool) }, null);
-
-    private static readonly MethodInfo _rm = typeof(DummyKeyEmulator).GetMethod("RemoveEntry", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new[] { typeof(ActionName) }, null);
-
-    public DummyKeyEmulator Emulator { get; private set; }
-
-    public void Bind(Inventory inv)
+    public sealed class DummyInputWrapper : MonoBehaviour
     {
-        if (Emulator == null && inv != null)
-        {
-            Emulator = new DummyKeyEmulator(inv);
-        }
-    }
+        private static readonly FieldInfo _f = typeof(AutosyncItem).GetField("_dummyEmulator", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
-    public void InjectInto(AutosyncItem item)
-    {
-        if (item == null || Emulator == null || _f == null)
-        {
-            return;
-        }
+        private static readonly MethodInfo _am = typeof(DummyKeyEmulator).GetMethod("AddEntry", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new[] { typeof(ActionName), typeof(bool) }, null);
 
-        try
-        {
-            _f.SetValue(item, Emulator);
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError("[Causality] Reflection inject failed: " + ex);
-        }
-    }
+        private static readonly MethodInfo _rm = typeof(DummyKeyEmulator).GetMethod("RemoveEntry", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new[] { typeof(ActionName) }, null);
 
-    public void Add(ActionName a, bool click)
-    {
-        if (Emulator == null || _am == null)
+        public DummyKeyEmulator Emulator { get; private set; }
+
+        public void Bind(Inventory inv)
         {
-            return;
+            if (Emulator == null && inv != null)
+            {
+                Emulator = new DummyKeyEmulator(inv);
+            }
         }
 
-        try
+        public void InjectInto(AutosyncItem item)
         {
-            _am.Invoke(Emulator, new object[] { a, click });
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogError("[Causality] Reflection add failed: " + ex);
-        }
-    }
+            if (item == null || Emulator == null || _f == null)
+            {
+                return;
+            }
 
-    public void Remove(ActionName a)
-    {
-        if (Emulator == null || _rm == null)
-        {
-            return;
+            try
+            {
+                _f.SetValue(item, Emulator);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError("[Causality] Reflection inject failed: " + ex);
+            }
         }
 
-        try
+        public void Add(ActionName a, bool click)
         {
-            _rm.Invoke(Emulator, new object[] { a });
+            if (Emulator == null || _am == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _am.Invoke(Emulator, new object[] { a, click });
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError("[Causality] Reflection add failed: " + ex);
+            }
         }
-        catch (System.Exception ex)
+
+        public void Remove(ActionName a)
         {
-            Debug.LogError("[Causality] Reflection remove failed: " + ex);
+            if (Emulator == null || _rm == null)
+            {
+                return;
+            }
+
+            try
+            {
+                _rm.Invoke(Emulator, new object[] { a });
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError("[Causality] Reflection remove failed: " + ex);
+            }
         }
     }
 }

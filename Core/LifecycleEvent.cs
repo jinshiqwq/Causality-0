@@ -1,42 +1,44 @@
-using PlayerRoles;
+﻿using PlayerRoles;
 using PlayerStatsSystem;
 
-namespace Causality0.Core;
-
-public enum EventType : byte
+namespace Causality0.Core
 {
-    RoleChanged,
-    Died,
-    Left
-}
 
-public struct LifecycleEvent
-{
-    public int FrameIndex;
-    public EventType Type;
-    public sbyte RoleId;
-    public DamageData FatalDamage;
-
-    public LifecycleEvent(int frameIndex, EventType type, sbyte roleId, DamageData fatalDamage)
+    public enum EventType : byte
     {
-        FrameIndex = frameIndex;
-        Type = type;
-        RoleId = roleId;
-        FatalDamage = fatalDamage;
+        RoleChanged,
+        Died,
+        Left
     }
 
-    public static LifecycleEvent NewRole(int f, RoleTypeId r)
+    public struct LifecycleEvent
     {
-        return new LifecycleEvent(f, EventType.RoleChanged, (sbyte)r, default);
-    }
+        public int FrameIndex;
+        public EventType Type;
+        public sbyte RoleId;
+        public DamageData FatalDamage;
 
-    public static LifecycleEvent NewDeath(int f, DamageHandlerBase h)
-    {
-        return new LifecycleEvent(f, EventType.Died, 0, DamageData.FromHandler(h));
-    }
+        public LifecycleEvent(int frameIndex, EventType type, sbyte roleId, DamageData fatalDamage)
+        {
+            FrameIndex = frameIndex;
+            Type = type;
+            RoleId = roleId;
+            FatalDamage = fatalDamage;
+        }
 
-    public static LifecycleEvent NewLeft(int f)
-    {
-        return new LifecycleEvent(f, EventType.Left, 0, default);
+        public static LifecycleEvent NewRole(int f, RoleTypeId r)
+        {
+            return new LifecycleEvent(f, EventType.RoleChanged, (sbyte)r, default);
+        }
+
+        public static LifecycleEvent NewDeath(int f, DamageHandlerBase h)
+        {
+            return new LifecycleEvent(f, EventType.Died, 0, DamageData.FromHandler(h));
+        }
+
+        public static LifecycleEvent NewLeft(int f)
+        {
+            return new LifecycleEvent(f, EventType.Left, 0, default);
+        }
     }
 }

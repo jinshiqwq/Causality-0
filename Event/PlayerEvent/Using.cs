@@ -1,52 +1,54 @@
-using Causality0.Core;
+﻿using Causality0.Core;
 using LabApi.Events.Arguments.PlayerEvents;
 using LabApi.Events.Handlers;
 
-namespace Causality0.Event.PlayerEvent;
-
-public sealed class Using
+namespace Causality0.Event.PlayerEvent
 {
-    public void Enable()
-    {
-        PlayerEvents.UsingItem += OnUsingItem;
-        PlayerEvents.CancellingUsingItem += OnCancellingUsingItem;
-    }
 
-    public void Disable()
+    public sealed class Using
     {
-        PlayerEvents.CancellingUsingItem -= OnCancellingUsingItem;
-        PlayerEvents.UsingItem -= OnUsingItem;
-    }
-
-    private void OnUsingItem(PlayerUsingItemEventArgs ev)
-    {
-        if (ev.Player == null)
+        public void Enable()
         {
-            return;
+            PlayerEvents.UsingItem += OnUsingItem;
+            PlayerEvents.CancellingUsingItem += OnCancellingUsingItem;
         }
 
-        ReferenceHub h = ev.Player.ReferenceHub;
-        if (h == null || h.authManager?.DoNotTrack == true)
+        public void Disable()
         {
-            return;
+            PlayerEvents.CancellingUsingItem -= OnCancellingUsingItem;
+            PlayerEvents.UsingItem -= OnUsingItem;
         }
 
-        Timeline.MarkInput(h.PlayerId, Timeline.InputUse);
-    }
-
-    private void OnCancellingUsingItem(PlayerCancellingUsingItemEventArgs ev)
-    {
-        if (ev.Player == null)
+        private void OnUsingItem(PlayerUsingItemEventArgs ev)
         {
-            return;
+            if (ev.Player == null)
+            {
+                return;
+            }
+
+            ReferenceHub h = ev.Player.ReferenceHub;
+            if (h == null || h.authManager?.DoNotTrack == true)
+            {
+                return;
+            }
+
+            Timeline.MarkInput(h.PlayerId, Timeline.InputUse);
         }
 
-        ReferenceHub h = ev.Player.ReferenceHub;
-        if (h == null || h.authManager?.DoNotTrack == true)
+        private void OnCancellingUsingItem(PlayerCancellingUsingItemEventArgs ev)
         {
-            return;
-        }
+            if (ev.Player == null)
+            {
+                return;
+            }
 
-        Timeline.MarkInput(h.PlayerId, Timeline.InputUseCancel);
+            ReferenceHub h = ev.Player.ReferenceHub;
+            if (h == null || h.authManager?.DoNotTrack == true)
+            {
+                return;
+            }
+
+            Timeline.MarkInput(h.PlayerId, Timeline.InputUseCancel);
+        }
     }
 }

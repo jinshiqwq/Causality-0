@@ -1,34 +1,36 @@
-using Causality0.Core;
+﻿using Causality0.Core;
 using LabApi.Events.Arguments.PlayerEvents;
 using LabApi.Events.Handlers;
 
-namespace Causality0.Event.PlayerEvent;
-
-public sealed class Shooting
+namespace Causality0.Event.PlayerEvent
 {
-    public void Enable()
-    {
-        PlayerEvents.ShootingWeapon += OnShootingWeapon;
-    }
 
-    public void Disable()
+    public sealed class Shooting
     {
-        PlayerEvents.ShootingWeapon -= OnShootingWeapon;
-    }
-
-    private void OnShootingWeapon(PlayerShootingWeaponEventArgs ev)
-    {
-        if (ev.Player == null)
+        public void Enable()
         {
-            return;
+            PlayerEvents.ShootingWeapon += OnShootingWeapon;
         }
 
-        ReferenceHub h = ev.Player.ReferenceHub;
-        if (h == null || h.authManager?.DoNotTrack == true)
+        public void Disable()
         {
-            return;
+            PlayerEvents.ShootingWeapon -= OnShootingWeapon;
         }
 
-        Timeline.MarkInput(h.PlayerId, Timeline.InputShoot);
+        private void OnShootingWeapon(PlayerShootingWeaponEventArgs ev)
+        {
+            if (ev.Player == null)
+            {
+                return;
+            }
+
+            ReferenceHub h = ev.Player.ReferenceHub;
+            if (h == null || h.authManager?.DoNotTrack == true)
+            {
+                return;
+            }
+
+            Timeline.MarkInput(h.PlayerId, Timeline.InputShoot);
+        }
     }
 }

@@ -1,67 +1,69 @@
-using System;
+﻿using System;
 using Mirror;
 using PlayerStatsSystem;
 
-namespace Causality0.Core;
-
-public struct DamageData
+namespace Causality0.Core
 {
-    public byte[] Raw;
-    public int Length;
 
-    public DamageData(byte[] raw, int length)
+    public struct DamageData
     {
-        Raw = raw;
-        Length = length;
-    }
+        public byte[] Raw;
+        public int Length;
 
-    public bool HasValue => Raw != null && Length > 0;
-
-    public static DamageData FromHandler(DamageHandlerBase h)
-    {
-        if (h == null)
+        public DamageData(byte[] raw, int length)
         {
-            return default;
+            Raw = raw;
+            Length = length;
         }
 
-        NetworkWriterPooled w = NetworkWriterPool.Get();
-        try
-        {
-            w.WriteDamageHandler(h);
-            byte[] buf = w.ToArray();
-            return new DamageData(buf, buf.Length);
-        }
-        catch
-        {
-            return default;
-        }
-        finally
-        {
-            NetworkWriterPool.Return(w);
-        }
-    }
+        public bool HasValue => Raw != null && Length > 0;
 
-    public DamageHandlerBase ToHandler()
-    {
-        if (!HasValue)
+        public static DamageData FromHandler(DamageHandlerBase h)
         {
-            return new UniversalDamageHandler(-1f, DeathTranslations.Unknown);
-        }
-
-        try
-        {
-            int n = Length;
-            if (n > Raw.Length)
+            if (h == null)
             {
-                n = Raw.Length;
+                return default;
             }
 
-            using NetworkReaderPooled r = NetworkReaderPool.Get(new ArraySegment<byte>(Raw, 0, n));
-            return r.ReadDamageHandler();
+            NetworkWriterPooled w = NetworkWriterPool.Get();
+            try
+            {
+                w.WriteDamageHandler(h);
+                byte[] buf = w.ToArray();
+                return new DamageData(buf, buf.Length);
+            }
+            catch
+            {
+                return default;
+            }
+            finally
+            {
+                NetworkWriterPool.Return(w);
+            }
         }
-        catch
+
+        public DamageHandlerBase ToHandler()
         {
-            return new UniversalDamageHandler(-1f, DeathTranslations.Unknown);
+            if (!HasValue)
+            {
+                return new UniversalDamageHandler(-1f, DeathTranslations.Unknown);
+            }
+
+            try
+            {
+                int n = Length;
+                if (n > Raw.Length)
+                {
+                    n = Raw.Length;
+                }
+
+                using NetworkReaderPooled r = NetworkReaderPool.Get(new ArraySegment<byte>(Raw, 0, n));
+                return r.ReadDamageHandler();
+            }
+            catch
+            {
+                return new UniversalDamageHandler(-1f, DeathTranslations.Unknown);
+            }
         }
     }
 }

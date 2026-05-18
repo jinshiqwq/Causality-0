@@ -1,70 +1,72 @@
-using Causality0.Core;
+﻿using Causality0.Core;
 using LabApi.Events.Arguments.PlayerEvents;
 using LabApi.Events.Handlers;
 
-namespace Causality0.Event.PlayerEvent;
-
-public sealed class Lifecycle
+namespace Causality0.Event.PlayerEvent
 {
-    public void Enable()
+
+    public sealed class Lifecycle
     {
-        PlayerEvents.ChangedRole += OnChangedRole;
-        PlayerEvents.Dying += OnDying;
-        PlayerEvents.Left += OnLeft;
-    }
-
-    public void Disable()
-    {
-        PlayerEvents.Left -= OnLeft;
-        PlayerEvents.Dying -= OnDying;
-        PlayerEvents.ChangedRole -= OnChangedRole;
-    }
-
-    private void OnChangedRole(PlayerChangedRoleEventArgs ev)
-    {
-        if (!Timeline.IsRec || ev.Player == null)
+        public void Enable()
         {
-            return;
+            PlayerEvents.ChangedRole += OnChangedRole;
+            PlayerEvents.Dying += OnDying;
+            PlayerEvents.Left += OnLeft;
         }
 
-        ReferenceHub h = ev.Player.ReferenceHub;
-        if (h == null || h.authManager?.DoNotTrack == true)
+        public void Disable()
         {
-            return;
+            PlayerEvents.Left -= OnLeft;
+            PlayerEvents.Dying -= OnDying;
+            PlayerEvents.ChangedRole -= OnChangedRole;
         }
 
-        Timeline.TrackLifecycleRole(h.PlayerId, ev.NewRole.RoleTypeId);
-    }
-
-    private void OnDying(PlayerDyingEventArgs ev)
-    {
-        if (!Timeline.IsRec || ev.Player == null || ev.DamageHandler == null)
+        private void OnChangedRole(PlayerChangedRoleEventArgs ev)
         {
-            return;
+            if (!Timeline.IsRec || ev.Player == null)
+            {
+                return;
+            }
+
+            ReferenceHub h = ev.Player.ReferenceHub;
+            if (h == null || h.authManager?.DoNotTrack == true)
+            {
+                return;
+            }
+
+            Timeline.TrackLifecycleRole(h.PlayerId, ev.NewRole.RoleTypeId);
         }
 
-        ReferenceHub h = ev.Player.ReferenceHub;
-        if (h == null || h.authManager?.DoNotTrack == true)
+        private void OnDying(PlayerDyingEventArgs ev)
         {
-            return;
+            if (!Timeline.IsRec || ev.Player == null || ev.DamageHandler == null)
+            {
+                return;
+            }
+
+            ReferenceHub h = ev.Player.ReferenceHub;
+            if (h == null || h.authManager?.DoNotTrack == true)
+            {
+                return;
+            }
+
+            Timeline.TrackLifecycleDeath(h.PlayerId, ev.DamageHandler);
         }
 
-        Timeline.TrackLifecycleDeath(h.PlayerId, ev.DamageHandler);
-    }
-
-    private void OnLeft(PlayerLeftEventArgs ev)
-    {
-        if (!Timeline.IsRec || ev.Player == null || ev.Player.IsDummy)
+        private void OnLeft(PlayerLeftEventArgs ev)
         {
-            return;
-        }
+            if (!Timeline.IsRec || ev.Player == null || ev.Player.IsDummy)
+            {
+                return;
+            }
 
-        ReferenceHub h = ev.Player.ReferenceHub;
-        if (h == null || h.authManager?.DoNotTrack == true)
-        {
-            return;
-        }
+            ReferenceHub h = ev.Player.ReferenceHub;
+            if (h == null || h.authManager?.DoNotTrack == true)
+            {
+                return;
+            }
 
-        Timeline.TrackLifecycleLeft(h.PlayerId);
+            Timeline.TrackLifecycleLeft(h.PlayerId);
+        }
     }
 }

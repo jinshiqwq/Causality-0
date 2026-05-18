@@ -1,44 +1,46 @@
-using Causality0.Core;
+﻿using Causality0.Core;
 using LabApi.Events.Arguments.PlayerEvents;
 using LabApi.Events.Handlers;
 
-namespace Causality0.Event.PlayerEvent;
-
-public sealed class Throwing
+namespace Causality0.Event.PlayerEvent
 {
-    public void Enable()
-    {
-        PlayerEvents.ThrowingProjectile += OnThrowingProjectile;
-        PlayerEvents.ThrewProjectile += OnThrewProjectile;
-    }
 
-    public void Disable()
+    public sealed class Throwing
     {
-        PlayerEvents.ThrewProjectile -= OnThrewProjectile;
-        PlayerEvents.ThrowingProjectile -= OnThrowingProjectile;
-    }
-
-    private void OnThrowingProjectile(PlayerThrowingProjectileEventArgs ev)
-    {
-        if (Timeline.IsPlay && ev.Player != null && ev.Player.IsDummy)
+        public void Enable()
         {
-            ev.IsAllowed = false;
-        }
-    }
-
-    private void OnThrewProjectile(PlayerThrewProjectileEventArgs ev)
-    {
-        if (!Timeline.IsRec || ev.Player == null || ev.Projectile == null || ev.ThrowableItem == null)
-        {
-            return;
+            PlayerEvents.ThrowingProjectile += OnThrowingProjectile;
+            PlayerEvents.ThrewProjectile += OnThrewProjectile;
         }
 
-        ReferenceHub h = ev.Player.ReferenceHub;
-        if (h == null || h.authManager?.DoNotTrack == true)
+        public void Disable()
         {
-            return;
+            PlayerEvents.ThrewProjectile -= OnThrewProjectile;
+            PlayerEvents.ThrowingProjectile -= OnThrowingProjectile;
         }
 
-        Timeline.TrackProjectile(ev.Projectile.Base, ev.ThrowableItem.Base.ItemTypeId, h);
+        private void OnThrowingProjectile(PlayerThrowingProjectileEventArgs ev)
+        {
+            if (Timeline.IsPlay && ev.Player != null && ev.Player.IsDummy)
+            {
+                ev.IsAllowed = false;
+            }
+        }
+
+        private void OnThrewProjectile(PlayerThrewProjectileEventArgs ev)
+        {
+            if (!Timeline.IsRec || ev.Player == null || ev.Projectile == null || ev.ThrowableItem == null)
+            {
+                return;
+            }
+
+            ReferenceHub h = ev.Player.ReferenceHub;
+            if (h == null || h.authManager?.DoNotTrack == true)
+            {
+                return;
+            }
+
+            Timeline.TrackProjectile(ev.Projectile.Base, ev.ThrowableItem.Base.ItemTypeId, h);
+        }
     }
 }

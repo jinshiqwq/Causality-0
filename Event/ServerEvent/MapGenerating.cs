@@ -1,33 +1,35 @@
-using LabApi.Events.Arguments.ServerEvents;
+﻿using LabApi.Events.Arguments.ServerEvents;
 using LabApi.Events.Handlers;
 using MapGeneration;
 
-namespace Causality0.Event.ServerEvent;
-
-public sealed class MapGenerating
+namespace Causality0.Event.ServerEvent
 {
-    public int Seed { get; set; }
 
-    public bool UseSeed { get; set; }
-
-    public void Enable()
+    public sealed class MapGenerating
     {
-        ServerEvents.MapGenerating += OnMapGenerating;
-    }
+        public int Seed { get; set; }
 
-    public void Disable()
-    {
-        ServerEvents.MapGenerating -= OnMapGenerating;
-    }
+        public bool UseSeed { get; set; }
 
-    private void OnMapGenerating(MapGeneratingEventArgs ev)
-    {
-        if (!UseSeed || Seed <= 0)
+        public void Enable()
         {
-            return;
+            ServerEvents.MapGenerating += OnMapGenerating;
         }
 
-        ev.Seed = Seed;
-        UseSeed = false;
+        public void Disable()
+        {
+            ServerEvents.MapGenerating -= OnMapGenerating;
+        }
+
+        private void OnMapGenerating(MapGeneratingEventArgs ev)
+        {
+            if (!UseSeed || Seed <= 0)
+            {
+                return;
+            }
+
+            ev.Seed = Seed;
+            UseSeed = false;
+        }
     }
 }

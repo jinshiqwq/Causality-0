@@ -1,63 +1,65 @@
-using PlayerRoles;
+﻿using PlayerRoles;
 using PlayerRoles.FirstPersonControl;
 using RelativePositioning;
 using UnityEngine;
 
-namespace Causality0.Core;
-
-public sealed class DummyMotorWrapper : MonoBehaviour
+namespace Causality0.Core
 {
-    private FpcMotor _m;
-    private IFpcRole _r;
-    private Vector3 _v;
-    private bool _g;
-    private bool _ok;
-    private PlayerMovementState _s;
 
-    public float MoveSpeed = 30f;
-
-    public void Bind(ReferenceHub h)
+    public sealed class DummyMotorWrapper : MonoBehaviour
     {
-        _r = h?.roleManager?.CurrentRole as IFpcRole;
-        _m = _r?.FpcModule?.Motor;
-    }
+        private FpcMotor _m;
+        private IFpcRole _r;
+        private Vector3 _v;
+        private bool _g;
+        private bool _ok;
+        private PlayerMovementState _s;
 
-    public void SetFakeVelocity(Vector3 v, bool g, PlayerMovementState s)
-    {
-        _v = v;
-        _g = g;
-        _s = s;
-        _ok = true;
-    }
+        public float MoveSpeed = 30f;
 
-    private void LateUpdate()
-    {
-        if (!_ok)
+        public void Bind(ReferenceHub h)
         {
-            return;
+            _r = h?.roleManager?.CurrentRole as IFpcRole;
+            _m = _r?.FpcModule?.Motor;
         }
 
-        if (_m == null || _r?.FpcModule == null)
+        public void SetFakeVelocity(Vector3 v, bool g, PlayerMovementState s)
         {
-            Bind(GetComponent<ReferenceHub>());
-            if (_m == null || _r?.FpcModule == null)
+            _v = v;
+            _g = g;
+            _s = s;
+            _ok = true;
+        }
+
+        private void LateUpdate()
+        {
+            if (!_ok)
             {
                 return;
             }
-        }
 
-        _r.FpcModule.CurrentMovementState = _s;
-        _r.FpcModule.IsGrounded = _g;
-        Vector3 p = _r.FpcModule.Position;
-        Vector3 d = _v;
-        d.y = 0f;
-        if (d.sqrMagnitude <= 0.0001f)
-        {
-            _m.ReceivedPosition = new RelativePosition(p);
-            return;
-        }
+            if (_m == null || _r?.FpcModule == null)
+            {
+                Bind(GetComponent<ReferenceHub>());
+                if (_m == null || _r?.FpcModule == null)
+                {
+                    return;
+                }
+            }
 
-        d.Normalize();
-        _m.ReceivedPosition = new RelativePosition(p + d * (MoveSpeed * Time.deltaTime));
+            _r.FpcModule.CurrentMovementState = _s;
+            _r.FpcModule.IsGrounded = _g;
+            Vector3 p = _r.FpcModule.Position;
+            Vector3 d = _v;
+            d.y = 0f;
+            if (d.sqrMagnitude <= 0.0001f)
+            {
+                _m.ReceivedPosition = new RelativePosition(p);
+                return;
+            }
+
+            d.Normalize();
+            _m.ReceivedPosition = new RelativePosition(p + d * (MoveSpeed * Time.deltaTime));
+        }
     }
 }

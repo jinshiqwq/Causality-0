@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using CentralAuth;
 using CommandSystem;
 using Causality0.Core;
@@ -7,48 +7,50 @@ using PlayerRoles;
 using PlayerRoles.FirstPersonControl;
 using RemoteAdmin;
 
-namespace Causality0.Command.RemoteAdmin;
-
-[CommandHandler(typeof(RemoteAdminCommandHandler))]
-public sealed class SpawnActor : ICommand
+namespace Causality0.Command.RemoteAdmin
 {
-    public string Command { get; } = "spawnactor";
 
-    public string[] Aliases { get; } = Array.Empty<string>();
-
-    public string Description { get; } = "Spawn an actor dummy at your position.";
-
-    public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)
+    [CommandHandler(typeof(RemoteAdminCommandHandler))]
+    public sealed class SpawnActor : ICommand
     {
-        if (!sender.CheckPermission(PlayerPermissions.PlayersManagement))
-        {
-            response = "no permission";
-            return false;
-        }
+        public string Command { get; } = "spawnactor";
 
-        if (sender is not PlayerCommandSender p)
-        {
-            response = "player only";
-            return false;
-        }
+        public string[] Aliases { get; } = Array.Empty<string>();
 
-        ReferenceHub h = DummyUtils.SpawnDummy("Actor-01");
-        if (h == null)
-        {
-            response = "spawn failed";
-            return false;
-        }
+        public string Description { get; } = "Spawn an actor dummy at your position.";
 
-        h.roleManager.ServerSetRole(RoleTypeId.ClassD, RoleChangeReason.RemoteAdmin);
-        if (!h.TryOverridePosition(p.ReferenceHub.transform.position))
+        public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)
         {
-            response = "spawned but move failed";
-            return false;
-        }
+            if (!sender.CheckPermission(PlayerPermissions.PlayersManagement))
+            {
+                response = "no permission";
+                return false;
+            }
 
-        h.TryOverrideRotation(Vector3.zero);
-        Timeline.SetActor(h);
-        response = $"ok {h.PlayerId}";
-        return true;
+            if (sender is not PlayerCommandSender p)
+            {
+                response = "player only";
+                return false;
+            }
+
+            ReferenceHub h = DummyUtils.SpawnDummy("Actor-01");
+            if (h == null)
+            {
+                response = "spawn failed";
+                return false;
+            }
+
+            h.roleManager.ServerSetRole(RoleTypeId.ClassD, RoleChangeReason.RemoteAdmin);
+            if (!h.TryOverridePosition(p.ReferenceHub.transform.position))
+            {
+                response = "spawned but move failed";
+                return false;
+            }
+
+            h.TryOverrideRotation(Vector3.zero);
+            Timeline.SetActor(h);
+            response = $"ok {h.PlayerId}";
+            return true;
+        }
     }
 }

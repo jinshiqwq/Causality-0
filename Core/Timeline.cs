@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using MEC;
 using Footprinting;
 using Interactables.Interobjects.DoorUtils;
@@ -23,7 +23,9 @@ using Utils;
 using VoiceChat;
 using VoiceChat.Networking;
 
-namespace Causality0.Core;
+namespace Causality0.Core
+{
+
 
 public static class Timeline
 {
@@ -142,7 +144,7 @@ public static class Timeline
         Tracks[h.PlayerId] = t;
     }
 
-    public static void StartRecord(ReferenceHub h)
+    public static void StartRecord()
     {
         StopPlay();
         StopRecord();
@@ -1597,4 +1599,4 @@ public static class Timeline
             yield return Timing.WaitForSeconds(Step);
         }
     }
-}
+} }

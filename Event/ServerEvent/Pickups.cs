@@ -1,40 +1,42 @@
-using Causality0.Core;
+﻿using Causality0.Core;
 using LabApi.Events.Arguments.ServerEvents;
 using LabApi.Events.Handlers;
 
-namespace Causality0.Event.ServerEvent;
-
-public sealed class Pickups
+namespace Causality0.Event.ServerEvent
 {
-    public void Enable()
-    {
-        ServerEvents.PickupCreated += OnPickupCreated;
-        ServerEvents.PickupDestroyed += OnPickupDestroyed;
-    }
 
-    public void Disable()
+    public sealed class Pickups
     {
-        ServerEvents.PickupDestroyed -= OnPickupDestroyed;
-        ServerEvents.PickupCreated -= OnPickupCreated;
-    }
-
-    private void OnPickupCreated(PickupCreatedEventArgs ev)
-    {
-        if (ev.Pickup == null)
+        public void Enable()
         {
-            return;
+            ServerEvents.PickupCreated += OnPickupCreated;
+            ServerEvents.PickupDestroyed += OnPickupDestroyed;
         }
 
-        Timeline.TrackPickupCreate(ev.Pickup);
-    }
-
-    private void OnPickupDestroyed(PickupDestroyedEventArgs ev)
-    {
-        if (ev.Pickup == null)
+        public void Disable()
         {
-            return;
+            ServerEvents.PickupDestroyed -= OnPickupDestroyed;
+            ServerEvents.PickupCreated -= OnPickupCreated;
         }
 
-        Timeline.TrackPickupDestroy(ev.Pickup);
+        private void OnPickupCreated(PickupCreatedEventArgs ev)
+        {
+            if (ev.Pickup == null)
+            {
+                return;
+            }
+
+            Timeline.TrackPickupCreate(ev.Pickup);
+        }
+
+        private void OnPickupDestroyed(PickupDestroyedEventArgs ev)
+        {
+            if (ev.Pickup == null)
+            {
+                return;
+            }
+
+            Timeline.TrackPickupDestroy(ev.Pickup);
+        }
     }
 }

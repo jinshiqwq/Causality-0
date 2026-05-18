@@ -1,34 +1,36 @@
-using Causality0.Core;
+﻿using Causality0.Core;
 using LabApi.Events.Arguments.PlayerEvents;
 using LabApi.Events.Handlers;
 
-namespace Causality0.Event.PlayerEvent;
-
-public sealed class Verified
+namespace Causality0.Event.PlayerEvent
 {
-    public void Enable()
-    {
-        PlayerEvents.Joined += OnJoined;
-    }
 
-    public void Disable()
+    public sealed class Verified
     {
-        PlayerEvents.Joined -= OnJoined;
-    }
-
-    private void OnJoined(PlayerJoinedEventArgs ev)
-    {
-        if (ev.Player == null || ev.Player.IsDummy)
+        public void Enable()
         {
-            return;
+            PlayerEvents.Joined += OnJoined;
         }
 
-        ReferenceHub h = ev.Player.ReferenceHub;
-        if (h == null || h.authManager?.DoNotTrack == true)
+        public void Disable()
         {
-            return;
+            PlayerEvents.Joined -= OnJoined;
         }
 
-        Timeline.TrackActor(h);
+        private void OnJoined(PlayerJoinedEventArgs ev)
+        {
+            if (ev.Player == null || ev.Player.IsDummy)
+            {
+                return;
+            }
+
+            ReferenceHub h = ev.Player.ReferenceHub;
+            if (h == null || h.authManager?.DoNotTrack == true)
+            {
+                return;
+            }
+
+            Timeline.TrackActor(h);
+        }
     }
 }

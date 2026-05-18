@@ -1,34 +1,36 @@
-using Causality0.Core;
+﻿using Causality0.Core;
 using LabApi.Events.Arguments.PlayerEvents;
 using LabApi.Events.Handlers;
 
-namespace Causality0.Event.PlayerEvent;
-
-public sealed class Reloading
+namespace Causality0.Event.PlayerEvent
 {
-    public void Enable()
-    {
-        PlayerEvents.ReloadingWeapon += OnReloadingWeapon;
-    }
 
-    public void Disable()
+    public sealed class Reloading
     {
-        PlayerEvents.ReloadingWeapon -= OnReloadingWeapon;
-    }
-
-    private void OnReloadingWeapon(PlayerReloadingWeaponEventArgs ev)
-    {
-        if (ev.Player == null)
+        public void Enable()
         {
-            return;
+            PlayerEvents.ReloadingWeapon += OnReloadingWeapon;
         }
 
-        ReferenceHub h = ev.Player.ReferenceHub;
-        if (h == null || h.authManager?.DoNotTrack == true)
+        public void Disable()
         {
-            return;
+            PlayerEvents.ReloadingWeapon -= OnReloadingWeapon;
         }
 
-        Timeline.MarkInput(h.PlayerId, Timeline.InputReload);
+        private void OnReloadingWeapon(PlayerReloadingWeaponEventArgs ev)
+        {
+            if (ev.Player == null)
+            {
+                return;
+            }
+
+            ReferenceHub h = ev.Player.ReferenceHub;
+            if (h == null || h.authManager?.DoNotTrack == true)
+            {
+                return;
+            }
+
+            Timeline.MarkInput(h.PlayerId, Timeline.InputReload);
+        }
     }
 }
