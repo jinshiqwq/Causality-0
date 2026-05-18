@@ -26,7 +26,6 @@ using VoiceChat.Networking;
 namespace Causality0.Core
 {
 
-
 public static class Timeline
 {
     public static Dictionary<int, ActorTrack> Tracks { get; } = new Dictionary<int, ActorTrack>();
