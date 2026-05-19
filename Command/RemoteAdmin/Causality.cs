@@ -31,11 +31,14 @@ namespace Causality0.Command.RemoteAdmin
             RegisterCommand(new Play());
             RegisterCommand(new Save());
             RegisterCommand(new Load());
+            RegisterCommand(new Seek());
+            RegisterCommand(new Fwd());
+            RegisterCommand(new Back());
         }
 
         protected override bool ExecuteParent(ArraySegment<string> arguments, ICommandSender sender, out string response)
         {
-            response = "use start, stop, spawn, play, save, load; alias: c0";
+            response = "use start, stop, spawn, play, save, load, seek, fwd, back; alias: c0";
             return false;
         }
 
@@ -256,6 +259,110 @@ namespace Causality0.Command.RemoteAdmin
 
             Timeline.ApplyWorldState();
             response = $"Replay loaded: {p}";
+            return true;
+        }
+    }
+
+    public sealed class Seek : ICommand
+    {
+        public string Command { get; } = "seek";
+
+        public string[] Aliases { get; } = Array.Empty<string>();
+
+        public string Description { get; } = "Seek to a specific time (seconds) in the playing timeline.";
+
+        public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)
+        {
+            if (!sender.CheckPermission(PlayerPermissions.PlayersManagement))
+            {
+                response = "no permission";
+                return false;
+            }
+
+            if (!Timeline.IsPlay)
+            {
+                response = "no playback running";
+                return false;
+            }
+
+            if (arguments.Count < 1 || !float.TryParse(arguments.At(0), out float seconds) || seconds < 0f)
+            {
+                response = "usage: c0 seek <seconds>";
+                return false;
+            }
+
+            Timeline.SeekToTime(seconds);
+            response = $"seeked to {seconds:F1}s";
+            return true;
+        }
+    }
+
+    public sealed class Fwd : ICommand
+    {
+        public string Command { get; } = "fwd";
+
+        public string[] Aliases { get; } = Array.Empty<string>();
+
+        public string Description { get; } = "Skip forward N seconds (default 10s) in the playing timeline.";
+
+        public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)
+        {
+            if (!sender.CheckPermission(PlayerPermissions.PlayersManagement))
+            {
+                response = "no permission";
+                return false;
+            }
+
+            if (!Timeline.IsPlay)
+            {
+                response = "no playback running";
+                return false;
+            }
+
+            float delta = 10f;
+            if (arguments.Count >= 1 && (!float.TryParse(arguments.At(0), out delta) || delta <= 0f))
+            {
+                response = "usage: c0 fwd [seconds]";
+                return false;
+            }
+
+            Timeline.SkipForward(delta);
+            response = $"skipped forward {delta:F1}s";
+            return true;
+        }
+    }
+
+    public sealed class Back : ICommand
+    {
+        public string Command { get; } = "back";
+
+        public string[] Aliases { get; } = Array.Empty<string>();
+
+        public string Description { get; } = "Skip backward N seconds (default 10s) in the playing timeline.";
+
+        public bool Execute(ArraySegment<string> arguments, ICommandSender sender, out string response)
+        {
+            if (!sender.CheckPermission(PlayerPermissions.PlayersManagement))
+            {
+                response = "no permission";
+                return false;
+            }
+
+            if (!Timeline.IsPlay)
+            {
+                response = "no playback running";
+                return false;
+            }
+
+            float delta = 10f;
+            if (arguments.Count >= 1 && (!float.TryParse(arguments.At(0), out delta) || delta <= 0f))
+            {
+                response = "usage: c0 back [seconds]";
+                return false;
+            }
+
+            Timeline.SkipBack(delta);
+            response = $"skipped back {delta:F1}s";
             return true;
         }
     }

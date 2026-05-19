@@ -85,6 +85,8 @@ public static class Timeline
 
     private static CoroutineHandle _ph;
 
+    public static int CurrentPlayFrame { get; private set; }
+
     public static void Clear()
     {
         CleanupReplayWorld();
@@ -229,6 +231,53 @@ public static class Timeline
         }
 
         CleanupReplayWorld();
+    }
+
+    public static bool SeekToFrame(int frame)
+    {
+        if (frame < 0)
+            frame = 0;
+        int max = MaxFrames();
+        if (max > 0 && frame >= max)
+            frame = max - 1;
+
+        bool wasPlaying = _ph.IsRunning;
+        if (wasPlaying)
+            Timing.KillCoroutines(_ph);
+
+        CleanupAllDummies();
+        CleanupReplayWorld();
+
+        foreach (ProjectileTrack pt in ProjTracks)
+        {
+            pt.Puppet = null;
+            pt.HasDetonated = false;
+        }
+
+        RebuildPickupState(frame);
+        RebuildProjectileState(frame);
+
+        _ph = Timing.RunCoroutine(RunPlay(frame));
+        return true;
+    }
+
+    public static void SeekToTime(float seconds)
+    {
+        SeekToFrame(Mathf.RoundToInt(seconds * CurrentFps));
+    }
+
+    public static void SkipForward(float seconds = 10f)
+    {
+        if (!IsPlay || CurrentPlayFrame < 0)
+            return;
+        SeekToFrame(CurrentPlayFrame + Mathf.RoundToInt(seconds * CurrentFps));
+    }
+
+    public static void SkipBack(float seconds = 10f)
+    {
+        if (!IsPlay || CurrentPlayFrame < 0)
+            return;
+        SeekToFrame(CurrentPlayFrame - Mathf.RoundToInt(seconds * CurrentFps));
     }
 
     private static void DestroyPickupNow(Pickup p)
@@ -858,12 +907,17 @@ public static class Timeline
         return tr.Owner;
     }
 
-    public static bool TrySpawnActor(ActorTrack t)
+    public static bool TrySpawnActor(ActorTrack t, int spawnFrameIndex = 0)
     {
         if (t == null || t.Dummy != null || t.Frames.Count <= 0)
         {
             return false;
         }
+
+        if (spawnFrameIndex < 0)
+            spawnFrameIndex = 0;
+        if (spawnFrameIndex >= t.Frames.Count)
+            spawnFrameIndex = t.Frames.Count - 1;
 
         string n = string.IsNullOrWhiteSpace(t.ActorName) ? $"Actor-{t.PlayerId}" : t.ActorName;
         ReferenceHub h = DummyUtils.SpawnDummy(n);
@@ -872,7 +926,7 @@ public static class Timeline
             return false;
         }
 
-        FrameData f = t.Frames[0];
+        FrameData f = t.Frames[spawnFrameIndex];
         RoleTypeId r = ResolveRole(t, t.StartFrame);
         h.roleManager.ServerSetRole(r, RoleChangeReason.RemoteAdmin);
         t.Dummy = h;
@@ -1306,7 +1360,63 @@ public static class Timeline
         }
     }
 
-    private static IEnumerator<float> RunPlay()
+    private static void CleanupAllDummies()
+    {
+        foreach (ActorTrack t in Tracks.Values)
+            DespawnActor(t);
+    }
+
+    private static void RebuildPickupState(int targetFrame)
+    {
+        float targetTime = targetFrame * Step;
+        _pim.Clear();
+        _ppm.Clear();
+        _psm.Clear();
+        _rw.Clear();
+        _nextPickupId = 1;
+
+        foreach (PickupData wp in WorldPickups)
+        {
+            Pickup p = SpawnWorldPickup(wp);
+            if (p != null)
+            {
+                RegisterPickup(p, wp.Id);
+                _psm[wp.Id] = wp;
+            }
+        }
+
+        for (int i = 0; i < PickupOps.Count; i++)
+        {
+            if (PickupOps[i].Ts > targetTime)
+                break;
+            ApplyPickupOp(PickupOps[i]);
+        }
+    }
+
+    private static void RebuildProjectileState(int targetFrame)
+    {
+        foreach (ProjectileTrack pt in ProjTracks)
+        {
+            pt.Puppet = null;
+            pt.HasDetonated = false;
+            int localFrame = targetFrame - pt.StartFrame;
+            if (localFrame < 0)
+                continue;
+
+            if (localFrame < pt.Frames.Count)
+            {
+                SpawnProjectilePuppet(pt);
+                if (pt.Puppet != null)
+                    MoveProjectilePuppet(pt, localFrame);
+            }
+            else
+            {
+                pt.HasDetonated = true;
+            }
+        }
+    }
+
+    private static IEnumerator<float> RunPlay(int fromFrame = 0)
     {
         Dictionary<int, int> a = new Dictionary<int, int>();
         Dictionary<int, byte> p = new Dictionary<int, byte>();
@@ -1321,11 +1431,33 @@ public static class Timeline
             g[t.PlayerId] = ResolveEndFrame(t);
         }
 
-        int i = 0;
+        float startTime = fromFrame * Step;
         int d = 0;
+        while (d < Interacts.Count && Interacts[d].Timestamp <= startTime)
+            d++;
         int w = 0;
+        while (w < PickupOps.Count && PickupOps[w].Ts <= startTime)
+            w++;
+
+        foreach (ActorTrack t in Tracks.Values)
+        {
+            if (!a.ContainsKey(t.PlayerId))
+                continue;
+            int audioIdx = 0;
+            while (audioIdx < t.AudioFrames.Count && t.AudioFrames[audioIdx].Timestamp <= startTime)
+                audioIdx++;
+            a[t.PlayerId] = audioIdx;
+
+            int lifeIdx = 0;
+            while (lifeIdx < t.LifeEvents.Count && t.LifeEvents[lifeIdx].FrameIndex <= fromFrame)
+                lifeIdx++;
+            l[t.PlayerId] = lifeIdx;
+        }
+
+        int i = fromFrame;
         while (true)
         {
+            CurrentPlayFrame = i;
             float e = i * Step;
             bool live = false;
             for (int j = 0; j < ProjTracks.Count; j++)
@@ -1387,7 +1519,13 @@ public static class Timeline
                 int ef = g.TryGetValue(t.PlayerId, out int gv) ? gv : -1;
                 if (t.Dummy == null && t.Frames.Count > 0 && i >= sf && (ef < 0 || i < ef))
                 {
-                    TrySpawnActor(t);
+                    int fiSpawn = i - sf;
+                    TrySpawnActor(t, fiSpawn);
+                    if (fromFrame > 0 && t.Dummy != null && t.Dummy.roleManager != null)
+                    {
+                        RoleTypeId seekRole = ResolveRole(t, i);
+                        t.Dummy.roleManager.ServerSetRole(seekRole, RoleChangeReason.RemoteAdmin);
+                    }
                 }
 
                 if (t.Dummy == null)
