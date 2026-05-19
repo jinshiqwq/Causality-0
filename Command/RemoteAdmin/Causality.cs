@@ -14,7 +14,6 @@ using UnityEngine;
 
 namespace Causality0.Command.RemoteAdmin
 {
-
     [CommandHandler(typeof(RemoteAdminCommandHandler))]
     public sealed class Causality : ParentCommand
     {
