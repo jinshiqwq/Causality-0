@@ -1283,15 +1283,36 @@ public static class Timeline
                     }
                 }
 
-                if (h == null || h.roleManager.CurrentRole is not IFpcRole r || r.FpcModule == null)
+                if (h == null)
                 {
+                    continue;
+                }
+
+                t.Role = (sbyte)h.GetRoleId();
+                t.ActorName = h.nicknameSync.MyNick;
+                if (t.StartFrame < 0)
+                    t.StartFrame = RecFrame;
+
+                byte im = PullInput(t.PlayerId);
+
+                if (h.roleManager.CurrentRole is not IFpcRole r || r.FpcModule == null)
+                {
+                    if (t.Frames.Count > 0)
+                    {
+                        FrameData last = t.Frames[t.Frames.Count - 1];
+                        t.Frames.Add(new FrameData(last.Pos, last.Rot, 0, true, 0, false, 0, 0, -1f, -1f));
+                    }
+                    else
+                    {
+                        t.Frames.Add(new FrameData(Vector3.zero, Vector2.zero, 0, true, 0, false, 0, 0, -1f, -1f));
+                    }
+
                     continue;
                 }
 
                 ItemType curType = h.inventory.CurItem.TypeId;
                 ushort cur = unchecked((ushort)curType);
                 bool act = curType != ItemType.None;
-                byte im = PullInput(t.PlayerId);
                 uint at = 0;
                 float hp = -1f;
                 float ah = -1f;
@@ -1319,13 +1340,6 @@ public static class Timeline
                 else if (h.playerStats.TryGetModule<AhpStat>(out var am))
                 {
                     ah = am.CurValue;
-                }
-
-                t.Role = (sbyte)h.GetRoleId();
-                t.ActorName = h.nicknameSync.MyNick;
-                if (t.StartFrame < 0)
-                {
-                    t.StartFrame = RecFrame;
                 }
 
                 t.Frames.Add(new FrameData(r.FpcModule.Position, new Vector2(r.FpcModule.MouseLook.CurrentVertical, r.FpcModule.MouseLook.CurrentHorizontal), (byte)r.FpcModule.SyncMovementState, r.FpcModule.IsGrounded, cur, act, im, at, hp, ah));
