@@ -926,9 +926,6 @@ public static class Timeline
             return false;
         }
 
-        if (h.characterClassManager != null)
-            h.characterClassManager.GodMode = true;
-
         FrameData f = t.Frames[spawnFrameIndex];
         RoleTypeId r = ResolveRole(t, t.StartFrame);
         h.roleManager.ServerSetRole(r, RoleChangeReason.RemoteAdmin);
@@ -941,6 +938,8 @@ public static class Timeline
             {
                 return;
             }
+
+            Player.Get(h).IsGodModeEnabled = true;
 
             h.TryOverridePosition(f.Pos);
             h.TryOverrideRotation(f.Rot);
@@ -1340,6 +1339,13 @@ public static class Timeline
                 else if (h.playerStats.TryGetModule<AhpStat>(out var am))
                 {
                     ah = am.CurValue;
+                }
+
+                t.Role = (sbyte)h.GetRoleId();
+                t.ActorName = h.nicknameSync.MyNick;
+                if (t.StartFrame < 0)
+                {
+                    t.StartFrame = RecFrame;
                 }
 
                 t.Frames.Add(new FrameData(r.FpcModule.Position, new Vector2(r.FpcModule.MouseLook.CurrentVertical, r.FpcModule.MouseLook.CurrentHorizontal), (byte)r.FpcModule.SyncMovementState, r.FpcModule.IsGrounded, cur, act, im, at, hp, ah));
