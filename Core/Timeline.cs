@@ -1596,9 +1596,8 @@ public static class Timeline
                         }
                         else if (ev.Type == EventType.Died)
                         {
-                            h.playerStats.DealDamage(ev.FatalDamage.ToHandler());
+                            h.roleManager.ServerSetRole(RoleTypeId.Spectator, RoleChangeReason.Died);
                             dead = true;
-                            DespawnActor(t);
                         }
                         else if (ev.Type == EventType.Left)
                         {
