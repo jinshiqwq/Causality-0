@@ -1598,6 +1598,7 @@ public static class Timeline
                         {
                             h.playerStats.DealDamage(ev.FatalDamage.ToHandler());
                             dead = true;
+                            DespawnActor(t);
                         }
                         else if (ev.Type == EventType.Left)
                         {
@@ -1621,8 +1622,12 @@ public static class Timeline
 
                 if (dead)
                 {
-                    wrapper.Remove(ActionName.Shoot);
-                    wrapper.Remove(ActionName.Reload);
+                    if (t.Dummy != null)
+                    {
+                        wrapper.Remove(ActionName.Shoot);
+                        wrapper.Remove(ActionName.Reload);
+                    }
+
                     p[t.PlayerId] = 0;
                     live = true;
                     continue;
