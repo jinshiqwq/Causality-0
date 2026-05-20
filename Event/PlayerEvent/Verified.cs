@@ -19,6 +19,11 @@ namespace Causality0.Event.PlayerEvent
 
         private void OnJoined(PlayerJoinedEventArgs ev)
         {
+            if (Timeline.IsPlay)
+            {
+                return;
+            }
+
             if (ev.Player == null || ev.Player.IsDummy)
             {
                 return;

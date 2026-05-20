@@ -21,6 +21,11 @@ namespace Causality0.Event.PlayerEvent
 
         private void OnUsingItem(PlayerUsingItemEventArgs ev)
         {
+            if (!Timeline.IsRec)
+            {
+                return;
+            }
+
             if (ev.Player == null)
             {
                 return;
@@ -37,6 +42,11 @@ namespace Causality0.Event.PlayerEvent
 
         private void OnCancellingUsingItem(PlayerCancellingUsingItemEventArgs ev)
         {
+            if (!Timeline.IsRec)
+            {
+                return;
+            }
+
             if (ev.Player == null)
             {
                 return;

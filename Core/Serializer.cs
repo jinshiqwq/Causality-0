@@ -13,6 +13,63 @@ namespace Causality0.Core
         private static readonly byte[] LzmaMagic = { 0x43, 0x30, 0x4C, 0x5A, 0x4D, 0x41 };
         private const int OldSeed = 114514;
 
+        private static ushort FloatToHalf(float v)
+        {
+            byte[] b = System.BitConverter.GetBytes(v);
+            uint i = System.BitConverter.ToUInt32(b, 0);
+            int s = (int)((i >> 16) & 0x8000);
+            int e = (int)((i >> 23) & 0xFF);
+            int m = (int)(i & 0x7FFFFF);
+
+            if (e == 0)
+                return (ushort)s;
+            if (e == 0xFF)
+                return (ushort)(s | 0x7C00 | ((m != 0) ? 0x200 : 0));
+
+            e = e - 127 + 15;
+            if (e >= 31)
+                return (ushort)(s | 0x7C00);
+            if (e <= 0)
+            {
+                m = (m | 0x800000) >> (1 - e);
+                if ((m & 0x1000) != 0)
+                    m += 0x2000;
+                return (ushort)(s | (m >> 13));
+            }
+
+            return (ushort)(s | (e << 10) | (m >> 13));
+        }
+
+        private static float HalfToFloat(ushort h)
+        {
+            int s = (h >> 15) & 1;
+            int e = (h >> 10) & 0x1F;
+            int m = h & 0x3FF;
+
+            if (e == 0)
+            {
+                if (m == 0)
+                    return System.BitConverter.ToSingle(System.BitConverter.GetBytes(s << 31), 0);
+                e = 1;
+                while ((m & 0x400) == 0)
+                {
+                    m <<= 1;
+                    e--;
+                }
+
+                m &= 0x3FF;
+            }
+            else if (e == 31)
+            {
+                uint bits = (uint)((s << 31) | (0xFF << 23) | (m << 13));
+                return System.BitConverter.ToSingle(System.BitConverter.GetBytes(bits), 0);
+            }
+
+            e += 127 - 15;
+            uint bits2 = (uint)((s << 31) | (e << 23) | (m << 13));
+            return System.BitConverter.ToSingle(System.BitConverter.GetBytes(bits2), 0);
+        }
+
         public static string LastErr { get; private set; } = string.Empty;
 
         public static void Save(string path)
@@ -25,27 +82,33 @@ namespace Causality0.Core
             }
 
             C0CompressionMode m = global::Causality0.Causality0.Instance?.Config?.ReplayCompression ?? C0CompressionMode.Lzma;
-            switch (m)
-            {
-                case C0CompressionMode.None:
-                    using (FileStream f = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
-                    {
-                        SaveRaw(f);
-                    }
-                    return;
-                default:
-                    SavePacked(path, SaveLzma);
-                    return;
-            }
-        }
 
-        private static void SavePacked(string path, System.Action<MemoryStream, FileStream> fn)
-        {
             using MemoryStream ms = new MemoryStream();
             SaveRaw(ms);
-            ms.Position = 0;
-            using FileStream f = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
-            fn(ms, f);
+            byte[] buf = ms.ToArray();
+
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    switch (m)
+                    {
+                        case C0CompressionMode.None:
+                            using (FileStream f = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
+                                f.Write(buf, 0, buf.Length);
+                            break;
+                        default:
+                            using (MemoryStream src = new MemoryStream(buf))
+                            using (FileStream f = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
+                                SaveLzma(src, f);
+                            break;
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    LastErr = ex.Message;
+                }
+            });
         }
 
         private static void SaveLzma(MemoryStream s, FileStream d)
@@ -63,7 +126,7 @@ namespace Causality0.Core
         {
             using BinaryWriter w = new BinaryWriter(s, Encoding.UTF8, true);
             w.Write("CAUS");
-            w.Write((byte)16);
+            w.Write((byte)17);
             w.Write(Timeline.MapSeed);
             w.Write(Timeline.CurrentFps);
             w.Write(Timeline.Tracks.Count);
@@ -77,19 +140,22 @@ namespace Causality0.Core
                 for (int i = 0; i < t.Frames.Count; i++)
                 {
                     FrameData f = t.Frames[i];
-                    w.Write(f.Pos.x);
-                    w.Write(f.Pos.y);
-                    w.Write(f.Pos.z);
-                    w.Write(f.Rot.x);
-                    w.Write(f.Rot.y);
-                    w.Write(f.MoveState);
-                    w.Write(f.Grounded);
+                    w.Write(FloatToHalf(f.Pos.x));
+                    w.Write(FloatToHalf(f.Pos.y));
+                    w.Write(FloatToHalf(f.Pos.z));
+                    w.Write(FloatToHalf(f.Rot.x));
+                    w.Write(FloatToHalf(f.Rot.y));
+                    ushort packed = (ushort)(
+                        (f.MoveState & 7) |
+                        ((f.Grounded ? 1 : 0) << 3) |
+                        ((f.IsPrimaryAction ? 1 : 0) << 4) |
+                        ((f.InputMask & 0xF) << 5)
+                    );
+                    w.Write(packed);
                     w.Write(f.HeldItem);
-                    w.Write(f.IsPrimaryAction);
-                    w.Write(f.InputMask);
                     w.Write(f.Attachments);
-                    w.Write(f.Hp);
-                    w.Write(f.Ahp);
+                    w.Write(FloatToHalf(f.Hp));
+                    w.Write(FloatToHalf(f.Ahp));
                 }
 
                 w.Write(t.AudioFrames.Count);
@@ -366,44 +432,68 @@ namespace Causality0.Core
                     StartFrame = v >= 10 ? r.ReadInt32() : 0
                 };
                 int m = r.ReadInt32();
-                for (int j = 0; j < m; j++)
+                if (v >= 17)
                 {
-                    float px = r.ReadSingle();
-                    float py = r.ReadSingle();
-                    float pz = r.ReadSingle();
-                    float rx = r.ReadSingle();
-                    float ry = r.ReadSingle();
-                    byte ms = r.ReadByte();
-                    bool g = r.ReadBoolean();
-                    ushort hi = 0;
-                    bool pa = false;
-                    byte im = 0;
-                    uint at = 0;
-                    float hp = -1f;
-                    float ah = -1f;
-                    if (v >= 2)
+                    for (int j = 0; j < m; j++)
                     {
-                        hi = r.ReadUInt16();
-                        pa = r.ReadBoolean();
+                        float px = HalfToFloat(r.ReadUInt16());
+                        float py = HalfToFloat(r.ReadUInt16());
+                        float pz = HalfToFloat(r.ReadUInt16());
+                        float rx = HalfToFloat(r.ReadUInt16());
+                        float ry = HalfToFloat(r.ReadUInt16());
+                        ushort packed = r.ReadUInt16();
+                        byte ms = (byte)(packed & 7);
+                        bool g = ((packed >> 3) & 1) != 0;
+                        bool pa = ((packed >> 4) & 1) != 0;
+                        byte im = (byte)((packed >> 5) & 0xF);
+                        ushort hi = r.ReadUInt16();
+                        uint at = r.ReadUInt32();
+                        float hp = HalfToFloat(r.ReadUInt16());
+                        float ah = HalfToFloat(r.ReadUInt16());
+                        t.Frames.Add(new FrameData(new UnityEngine.Vector3(px, py, pz), new UnityEngine.Vector2(rx, ry), ms, g, hi, pa, im, at, hp, ah));
                     }
-
-                    if (v >= 5)
+                }
+                else
+                {
+                    for (int j = 0; j < m; j++)
                     {
-                        im = r.ReadByte();
-                    }
+                        float px = r.ReadSingle();
+                        float py = r.ReadSingle();
+                        float pz = r.ReadSingle();
+                        float rx = r.ReadSingle();
+                        float ry = r.ReadSingle();
+                        byte ms = r.ReadByte();
+                        bool g = r.ReadBoolean();
+                        ushort hi = 0;
+                        bool pa = false;
+                        byte im = 0;
+                        uint at = 0;
+                        float hp = -1f;
+                        float ah = -1f;
+                        if (v >= 2)
+                        {
+                            hi = r.ReadUInt16();
+                            pa = r.ReadBoolean();
+                        }
 
-                    if (v >= 6)
-                    {
-                        at = r.ReadUInt32();
-                    }
+                        if (v >= 5)
+                        {
+                            im = r.ReadByte();
+                        }
 
-                    if (v >= 7)
-                    {
-                        hp = r.ReadSingle();
-                        ah = r.ReadSingle();
-                    }
+                        if (v >= 6)
+                        {
+                            at = r.ReadUInt32();
+                        }
 
-                    t.Frames.Add(new FrameData(new UnityEngine.Vector3(px, py, pz), new UnityEngine.Vector2(rx, ry), ms, g, hi, pa, im, at, hp, ah));
+                        if (v >= 7)
+                        {
+                            hp = r.ReadSingle();
+                            ah = r.ReadSingle();
+                        }
+
+                        t.Frames.Add(new FrameData(new UnityEngine.Vector3(px, py, pz), new UnityEngine.Vector2(rx, ry), ms, g, hi, pa, im, at, hp, ah));
+                    }
                 }
 
                 if (v >= 3)

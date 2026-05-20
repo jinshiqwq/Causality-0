@@ -19,6 +19,11 @@ namespace Causality0.Event.PlayerEvent
 
         private void OnShootingWeapon(PlayerShootingWeaponEventArgs ev)
         {
+            if (!Timeline.IsRec)
+            {
+                return;
+            }
+
             if (ev.Player == null)
             {
                 return;

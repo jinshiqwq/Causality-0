@@ -22,7 +22,7 @@ namespace Causality0.Event.PlayerEvent
 
         private void OnSendingVoice(PlayerSendingVoiceMessageEventArgs ev)
         {
-            if (!Timeline.IsRec || global::Causality0.Causality0.Instance?.Config?.RecordVoice != true)
+            if (!Timeline.IsRec || Timeline.IsPlay || global::Causality0.Causality0.Instance?.Config?.RecordVoice != true)
             {
                 return;
             }

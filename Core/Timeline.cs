@@ -129,7 +129,7 @@ public static class Timeline
 
     public static void TrackActor(ReferenceHub h)
     {
-        if (!IsRec || !CanRec(h) || Tracks.ContainsKey(h.PlayerId))
+        if (!IsRec || IsPlay || !CanRec(h) || Tracks.ContainsKey(h.PlayerId))
         {
             return;
         }
