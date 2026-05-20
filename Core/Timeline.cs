@@ -918,12 +918,16 @@ public static class Timeline
         if (spawnFrameIndex >= t.Frames.Count)
             spawnFrameIndex = t.Frames.Count - 1;
 
-        string n = string.IsNullOrWhiteSpace(t.ActorName) ? $"Actor-{t.PlayerId}" : t.ActorName;
+        string rawName = string.IsNullOrWhiteSpace(t.ActorName) ? $"Actor-{t.PlayerId}" : t.ActorName;
+        string n = "[回放] " + rawName;
         ReferenceHub h = DummyUtils.SpawnDummy(n);
         if (h == null)
         {
             return false;
         }
+
+        if (h.characterClassManager != null)
+            h.characterClassManager.GodMode = true;
 
         FrameData f = t.Frames[spawnFrameIndex];
         RoleTypeId r = ResolveRole(t, t.StartFrame);
