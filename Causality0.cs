@@ -74,6 +74,7 @@ namespace Causality0
 
         public override void Disable()
         {
+            Core.Timeline.StopRecord();
             Core.Timeline.StopPlay();
             Core.Timeline.CleanupReplayWorld();
             LifecycleEvent.Disable();
@@ -97,18 +98,21 @@ namespace Causality0
 
         private void OnWaitingForPlayers()
         {
+            Core.Timeline.StopRecord();
             Core.Timeline.StopPlay();
             Core.Timeline.CleanupReplayWorld();
         }
 
         private void OnRoundRestarted()
         {
+            Core.Timeline.StopRecord();
             Core.Timeline.StopPlay();
             Core.Timeline.CleanupReplayWorld();
         }
 
         private void OnRoundEnded(RoundEndedEventArgs ev)
         {
+            Core.Timeline.StopRecord();
             Core.Timeline.StopPlay();
             Core.Timeline.CleanupReplayWorld();
         }

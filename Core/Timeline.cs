@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using MEC;
 using Footprinting;
+using Interactables.Interobjects;
 using Interactables.Interobjects.DoorUtils;
 using InventorySystem.Items;
 using InventorySystem.Items.Autosync;
@@ -33,6 +34,8 @@ namespace Causality0.Core
         public static List<ProjectileTrack> ProjTracks { get; } = new List<ProjectileTrack>();
 
         public static List<InteractFrame> Interacts { get; } = new List<InteractFrame>();
+
+        public static List<ElevatorInteractFrame> ElevatorInteracts { get; } = new List<ElevatorInteractFrame>();
 
         public static List<PickupData> WorldPickups { get; } = new List<PickupData>();
 
@@ -92,6 +95,7 @@ namespace Causality0.Core
             Tracks.Clear();
             ProjTracks.Clear();
             Interacts.Clear();
+            ElevatorInteracts.Clear();
             WorldPickups.Clear();
             PickupOps.Clear();
             MapSeed = 0;
@@ -157,6 +161,7 @@ namespace Causality0.Core
             Tracks.Clear();
             ProjTracks.Clear();
             Interacts.Clear();
+            ElevatorInteracts.Clear();
             _im.Clear();
             _pm.Clear();
             _dm.Clear();
@@ -216,6 +221,7 @@ namespace Causality0.Core
 
             RebuildDoors();
             Interacts.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+            ElevatorInteracts.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
             PickupOps.Sort((a, b) => a.Ts.CompareTo(b.Ts));
             ProjTracks.Sort((a, b) => a.StartFrame.CompareTo(b.StartFrame));
             _ph = Timing.RunCoroutine(RunPlay());
@@ -784,6 +790,16 @@ namespace Causality0.Core
             Interacts.Add(new InteractFrame(RecFrame * Step, id, doorId, act, canOpen, pos, true));
         }
 
+        public static void TrackElevatorInteract(int id, byte group, int dest)
+        {
+            if (!IsRec || !Tracks.ContainsKey(id))
+            {
+                return;
+            }
+
+            ElevatorInteracts.Add(new ElevatorInteractFrame(RecFrame * Step, id, group, dest));
+        }
+
         public static void TrackLifecycleRole(int id, RoleTypeId r)
         {
             if (!IsRec || !Tracks.TryGetValue(id, out var t))
@@ -1102,6 +1118,22 @@ namespace Causality0.Core
             }
 
             d.NetworkTargetState = !d.TargetState;
+        }
+
+        private static void ReplayElevatorInteract(ElevatorInteractFrame x)
+        {
+            ElevatorGroup g = (ElevatorGroup)x.ElevatorGroup;
+            foreach (var e in Elevator.GetByGroup(g))
+            {
+                if (e != null)
+                {
+                    if (e.CurrentDestinationLevel != x.DestinationLevel)
+                    {
+                        e.SendToNextFloor();
+                    }
+                    
+                }
+            }
         }
 
         public static void TrackProjectile(ThrownProjectile p, ItemType t, ReferenceHub h)
@@ -1435,6 +1467,9 @@ namespace Causality0.Core
             int d = 0;
             while (d < Interacts.Count && Interacts[d].Timestamp <= startTime)
                 d++;
+            int el = 0;
+            while (el < ElevatorInteracts.Count && ElevatorInteracts[el].Timestamp <= startTime)
+                el++;
             int w = 0;
             while (w < PickupOps.Count && PickupOps[w].Ts <= startTime)
                 w++;
@@ -1509,6 +1544,18 @@ namespace Causality0.Core
                 }
 
                 if (d < Interacts.Count)
+                {
+                    live = true;
+                }
+
+                while (el < ElevatorInteracts.Count && ElevatorInteracts[el].Timestamp <= e)
+                {
+                    ReplayElevatorInteract(ElevatorInteracts[el]);
+                    el++;
+                    live = true;
+                }
+
+                if (el < ElevatorInteracts.Count)
                 {
                     live = true;
                 }

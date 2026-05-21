@@ -103,6 +103,7 @@
     <Compile Include="Core\ActorTrack.cs" />
     <Compile Include="Core\ProjectileTrack.cs" />
     <Compile Include="Core\InteractFrame.cs" />
+    <Compile Include="Core\ElevatorInteractFrame.cs" />
     <Compile Include="Core\DamageData.cs" />
     <Compile Include="Core\LifecycleEvent.cs" />
     <Compile Include="Core\WorldData.cs" />

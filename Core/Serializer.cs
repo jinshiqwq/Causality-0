@@ -126,7 +126,7 @@ namespace Causality0.Core
         {
             using BinaryWriter w = new BinaryWriter(s, Encoding.UTF8, true);
             w.Write("CAUS");
-            w.Write((byte)17);
+            w.Write((byte)19);
             w.Write(Timeline.MapSeed);
             w.Write(Timeline.CurrentFps);
             w.Write(Timeline.Tracks.Count);
@@ -140,11 +140,23 @@ namespace Causality0.Core
                 for (int i = 0; i < t.Frames.Count; i++)
                 {
                     FrameData f = t.Frames[i];
-                    w.Write(FloatToHalf(f.Pos.x));
-                    w.Write(FloatToHalf(f.Pos.y));
-                    w.Write(FloatToHalf(f.Pos.z));
-                    w.Write(FloatToHalf(f.Rot.x));
-                    w.Write(FloatToHalf(f.Rot.y));
+                    if (i == 0)
+                    {
+                        w.Write(FloatToHalf(f.Pos.x));
+                        w.Write(FloatToHalf(f.Pos.y));
+                        w.Write(FloatToHalf(f.Pos.z));
+                        w.Write(FloatToHalf(f.Rot.x));
+                        w.Write(FloatToHalf(f.Rot.y));
+                    }
+                    else
+                    {
+                        FrameData p = t.Frames[i - 1];
+                        w.Write(FloatToHalf(f.Pos.x - p.Pos.x));
+                        w.Write(FloatToHalf(f.Pos.y - p.Pos.y));
+                        w.Write(FloatToHalf(f.Pos.z - p.Pos.z));
+                        w.Write(FloatToHalf(f.Rot.x - p.Rot.x));
+                        w.Write(FloatToHalf(f.Rot.y - p.Rot.y));
+                    }
                     ushort packed = (ushort)(
                         (f.MoveState & 7) |
                         ((f.Grounded ? 1 : 0) << 3) |
@@ -222,6 +234,16 @@ namespace Causality0.Core
                     w.Write(x.Pos.y);
                     w.Write(x.Pos.z);
                 }
+            }
+
+            w.Write(Timeline.ElevatorInteracts.Count);
+            for (int i = 0; i < Timeline.ElevatorInteracts.Count; i++)
+            {
+                ElevatorInteractFrame x = Timeline.ElevatorInteracts[i];
+                w.Write(x.Timestamp);
+                w.Write(x.PlayerId);
+                w.Write(x.ElevatorGroup);
+                w.Write(x.DestinationLevel);
             }
 
             w.Write(Timeline.HasWorldState);
@@ -432,7 +454,40 @@ namespace Causality0.Core
                     StartFrame = v >= 10 ? r.ReadInt32() : 0
                 };
                 int m = r.ReadInt32();
-                if (v >= 17)
+                if (v >= 19)
+                {
+                    float px = 0f, py = 0f, pz = 0f, rx = 0f, ry = 0f;
+                    for (int j = 0; j < m; j++)
+                    {
+                        if (j == 0)
+                        {
+                            px = HalfToFloat(r.ReadUInt16());
+                            py = HalfToFloat(r.ReadUInt16());
+                            pz = HalfToFloat(r.ReadUInt16());
+                            rx = HalfToFloat(r.ReadUInt16());
+                            ry = HalfToFloat(r.ReadUInt16());
+                        }
+                        else
+                        {
+                            px += HalfToFloat(r.ReadUInt16());
+                            py += HalfToFloat(r.ReadUInt16());
+                            pz += HalfToFloat(r.ReadUInt16());
+                            rx += HalfToFloat(r.ReadUInt16());
+                            ry += HalfToFloat(r.ReadUInt16());
+                        }
+                        ushort packed = r.ReadUInt16();
+                        byte ms = (byte)(packed & 7);
+                        bool g = ((packed >> 3) & 1) != 0;
+                        bool pa = ((packed >> 4) & 1) != 0;
+                        byte im = (byte)((packed >> 5) & 0xF);
+                        ushort hi = r.ReadUInt16();
+                        uint at = r.ReadUInt32();
+                        float hp = HalfToFloat(r.ReadUInt16());
+                        float ah = HalfToFloat(r.ReadUInt16());
+                        t.Frames.Add(new FrameData(new UnityEngine.Vector3(px, py, pz), new UnityEngine.Vector2(rx, ry), ms, g, hi, pa, im, at, hp, ah));
+                    }
+                }
+                else if (v >= 17)
                 {
                     for (int j = 0; j < m; j++)
                     {
@@ -552,6 +607,19 @@ namespace Causality0.Core
                     }
 
                     Timeline.Interacts.Add(new InteractFrame(ts, id, doorId, act, canOpen, pos, hasPos));
+                }
+            }
+
+            if (v >= 18)
+            {
+                int c = r.ReadInt32();
+                for (int i = 0; i < c; i++)
+                {
+                    float ts = r.ReadSingle();
+                    int id = r.ReadInt32();
+                    byte group = r.ReadByte();
+                    int dest = r.ReadInt32();
+                    Timeline.ElevatorInteracts.Add(new ElevatorInteractFrame(ts, id, group, dest));
                 }
             }
 

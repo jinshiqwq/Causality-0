@@ -75,7 +75,7 @@ namespace Causality0.Command.RemoteAdmin
                 response = "role invalid";
                 return false;
             }
-
+            Timeline.StopRecord();
             Timeline.StartRecord();
             response = "recording";
             return true;
@@ -166,7 +166,7 @@ namespace Causality0.Command.RemoteAdmin
                 response = "no permission";
                 return false;
             }
-
+            Timeline.StopRecord();
             int cur = SeedSynchronizer.Seed;
             int rec = Timeline.MapSeed;
             if (cur != rec)
