@@ -37,5 +37,9 @@ namespace Causality0.Core
         public List<LifecycleEvent> LifeEvents { get; } = new List<LifecycleEvent>();
 
         public ReferenceHub Dummy { get; set; }
+
+        public DummyMotorWrapper MotorWrapper { get; set; }
+
+        public DummyInputWrapper InputWrapper { get; set; }
     }
 }

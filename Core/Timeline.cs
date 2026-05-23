@@ -87,6 +87,8 @@ namespace Causality0.Core
 
         private static CoroutineHandle _ph;
 
+        private static CoroutineHandle _ah;
+
         public static int CurrentPlayFrame { get; private set; }
 
         public static void Clear()
@@ -219,12 +221,18 @@ namespace Causality0.Core
                 Timing.KillCoroutines(_ph);
             }
 
+            if (_ah.IsRunning)
+            {
+                Timing.KillCoroutines(_ah);
+            }
+
             RebuildDoors();
             Interacts.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
             ElevatorInteracts.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
             PickupOps.Sort((a, b) => a.Ts.CompareTo(b.Ts));
             ProjTracks.Sort((a, b) => a.StartFrame.CompareTo(b.StartFrame));
             _ph = Timing.RunCoroutine(RunPlay());
+            _ah = Timing.RunCoroutine(RunAudioPlay(0f));
             return true;
         }
 
@@ -233,6 +241,11 @@ namespace Causality0.Core
             if (_ph.IsRunning)
             {
                 Timing.KillCoroutines(_ph);
+            }
+
+            if (_ah.IsRunning)
+            {
+                Timing.KillCoroutines(_ah);
             }
 
             CleanupReplayWorld();
@@ -248,7 +261,10 @@ namespace Causality0.Core
 
             bool wasPlaying = _ph.IsRunning;
             if (wasPlaying)
+            {
                 Timing.KillCoroutines(_ph);
+                Timing.KillCoroutines(_ah);
+            }
 
             CleanupAllDummies();
             CleanupReplayWorld();
@@ -262,7 +278,9 @@ namespace Causality0.Core
             RebuildPickupState(frame);
             RebuildProjectileState(frame);
 
+            float startTime = frame * Step;
             _ph = Timing.RunCoroutine(RunPlay(frame));
+            _ah = Timing.RunCoroutine(RunAudioPlay(startTime));
             return true;
         }
 
@@ -970,7 +988,9 @@ namespace Causality0.Core
 
             ReferenceHub h = t.Dummy;
             t.Dummy = null;
-            if (h != null && h.gameObject.TryGetComponent<DummyInputWrapper>(out var w))
+            t.MotorWrapper = null;
+            t.InputWrapper = null;
+            if (h != null && h.gameObject != null && h.gameObject.TryGetComponent<DummyInputWrapper>(out var w))
             {
                 w.Remove(ActionName.Shoot);
                 w.Remove(ActionName.Reload);
@@ -1003,16 +1023,22 @@ namespace Causality0.Core
             }
         }
 
-        private static void SyncMotor(ReferenceHub h, Vector3 v, bool g, PlayerMovementState s)
+        private static void SyncMotor(ActorTrack t, ReferenceHub h, Vector3 v, bool g, PlayerMovementState s)
         {
             if (h == null)
             {
                 return;
             }
 
-            if (!h.gameObject.TryGetComponent<DummyMotorWrapper>(out var w))
+            DummyMotorWrapper w = t.MotorWrapper;
+            if (w == null)
             {
-                w = h.gameObject.AddComponent<DummyMotorWrapper>();
+                if (!h.gameObject.TryGetComponent<DummyMotorWrapper>(out w))
+                {
+                    w = h.gameObject.AddComponent<DummyMotorWrapper>();
+                }
+
+                t.MotorWrapper = w;
             }
 
             w.Bind(h);
@@ -1300,19 +1326,15 @@ namespace Causality0.Core
         {
             while (Tracks.Count > 0)
             {
-                foreach (ActorTrack t in Tracks.Values)
+                bool sampleStats = RecFrame % 5 == 0;
+                foreach (ReferenceHub h in ReferenceHub.AllHubs)
                 {
-                    ReferenceHub h = null;
-                    foreach (ReferenceHub hub in ReferenceHub.AllHubs)
+                    if (!Tracks.TryGetValue(h.PlayerId, out ActorTrack t))
                     {
-                        if (hub.PlayerId == t.PlayerId)
-                        {
-                            h = hub;
-                            break;
-                        }
+                        continue;
                     }
 
-                    if (h == null || h.roleManager.CurrentRole is not IFpcRole r || r.FpcModule == null)
+                    if (h.roleManager.CurrentRole is not IFpcRole r || r.FpcModule == null)
                     {
                         continue;
                     }
@@ -1333,21 +1355,24 @@ namespace Causality0.Core
                         }
                     }
 
-                    if (h.playerStats.TryGetModule<HealthStat>(out var hs))
+                    if (sampleStats)
                     {
-                        hp = hs.CurValue;
-                    }
-
-                    if (h.roleManager.CurrentRole is IHumeShieldedRole)
-                    {
-                        if (h.playerStats.TryGetModule<HumeShieldStat>(out var hm))
+                        if (h.playerStats.TryGetModule<HealthStat>(out var hs))
                         {
-                            ah = hm.CurValue;
+                            hp = hs.CurValue;
                         }
-                    }
-                    else if (h.playerStats.TryGetModule<AhpStat>(out var am))
-                    {
-                        ah = am.CurValue;
+
+                        if (h.roleManager.CurrentRole is IHumeShieldedRole)
+                        {
+                            if (h.playerStats.TryGetModule<HumeShieldStat>(out var hm))
+                            {
+                                ah = hm.CurValue;
+                            }
+                        }
+                        else if (h.playerStats.TryGetModule<AhpStat>(out var am))
+                        {
+                            ah = am.CurValue;
+                        }
                     }
 
                     t.Role = (sbyte)h.GetRoleId();
@@ -1450,13 +1475,11 @@ namespace Causality0.Core
 
         private static IEnumerator<float> RunPlay(int fromFrame = 0)
         {
-            Dictionary<int, int> a = new Dictionary<int, int>();
             Dictionary<int, byte> p = new Dictionary<int, byte>();
             Dictionary<int, int> l = new Dictionary<int, int>();
             Dictionary<int, int> g = new Dictionary<int, int>();
             foreach (ActorTrack t in Tracks.Values)
             {
-                a[t.PlayerId] = 0;
                 p[t.PlayerId] = 0;
                 l[t.PlayerId] = 0;
                 t.LifeEvents.Sort((x, y) => x.FrameIndex != y.FrameIndex ? x.FrameIndex.CompareTo(y.FrameIndex) : ((byte)x.Type).CompareTo((byte)y.Type));
@@ -1476,13 +1499,6 @@ namespace Causality0.Core
 
             foreach (ActorTrack t in Tracks.Values)
             {
-                if (!a.ContainsKey(t.PlayerId))
-                    continue;
-                int audioIdx = 0;
-                while (audioIdx < t.AudioFrames.Count && t.AudioFrames[audioIdx].Timestamp <= startTime)
-                    audioIdx++;
-                a[t.PlayerId] = audioIdx;
-
                 int lifeIdx = 0;
                 while (lifeIdx < t.LifeEvents.Count && t.LifeEvents[lifeIdx].FrameIndex <= fromFrame)
                     lifeIdx++;
@@ -1585,43 +1601,16 @@ namespace Causality0.Core
                         continue;
                     }
 
-                    int idx = a.TryGetValue(t.PlayerId, out int v) ? v : 0;
-                    while (idx < t.AudioFrames.Count && t.AudioFrames[idx].Timestamp <= e)
+                    ReferenceHub h = t.Dummy;
+                    DummyInputWrapper wrapper = t.InputWrapper;
+                    if (wrapper == null)
                     {
-                        AudioPacket ap = t.AudioFrames[idx];
-                        if (ap.Data != null && ap.DataLength > 0)
+                        if (!h.gameObject.TryGetComponent<DummyInputWrapper>(out wrapper))
                         {
-                            int len = ap.DataLength;
-                            if (len > ap.Data.Length)
-                            {
-                                len = ap.Data.Length;
-                            }
-
-                            VoiceMessage msg = new VoiceMessage(t.Dummy, (VoiceChatChannel)ap.Channel, ap.Data, len, false);
-                            foreach (ReferenceHub client in ReferenceHub.AllHubs)
-                            {
-                                if (client == null || client.isLocalPlayer || client == t.Dummy || client.connectionToClient == null)
-                                {
-                                    continue;
-                                }
-
-                                client.connectionToClient.Send(msg);
-                            }
+                            wrapper = h.gameObject.AddComponent<DummyInputWrapper>();
                         }
 
-                        idx++;
-                    }
-
-                    a[t.PlayerId] = idx;
-                    if (idx < t.AudioFrames.Count)
-                    {
-                        live = true;
-                    }
-
-                    ReferenceHub h = t.Dummy;
-                    if (!h.gameObject.TryGetComponent<DummyInputWrapper>(out var wrapper))
-                    {
-                        wrapper = h.gameObject.AddComponent<DummyInputWrapper>();
+                        t.InputWrapper = wrapper;
                     }
 
                     wrapper.Bind(h.inventory);
@@ -1744,10 +1733,13 @@ namespace Causality0.Core
                             mv = (f.Pos - pf.Pos) / Step;
                         }
 
-                        SyncMotor(h, mv, f.Grounded, s);
+                        SyncMotor(t, h, mv, f.Grounded, s);
                     }
 
-                    SyncStats(h, f);
+                    if (i % 5 == 0)
+                    {
+                        SyncStats(h, f);
+                    }
                     if (h.inventory.CurInstance is AutosyncItem curAi)
                     {
                         wrapper.InjectInto(curAi);
@@ -1783,6 +1775,56 @@ namespace Causality0.Core
 
                 i++;
                 yield return Timing.WaitForSeconds(Step);
+            }
+        }
+
+        private static IEnumerator<float> RunAudioPlay(float startTime)
+        {
+            Dictionary<int, int> idx = new Dictionary<int, int>();
+            foreach (ActorTrack t in Tracks.Values)
+                idx[t.PlayerId] = 0;
+
+            float t0 = Time.time;
+            while (true)
+            {
+                bool live = false;
+                float cur = (Time.time - t0) + startTime;
+                foreach (ActorTrack t in Tracks.Values)
+                {
+                    if (t.Dummy == null)
+                        continue;
+
+                    int i = idx.TryGetValue(t.PlayerId, out int v) ? v : 0;
+                    while (i < t.AudioFrames.Count && t.AudioFrames[i].Timestamp <= cur)
+                    {
+                        AudioPacket ap = t.AudioFrames[i];
+                        if (ap.Data != null && ap.DataLength > 0)
+                        {
+                            int len = ap.DataLength;
+                            if (len > ap.Data.Length)
+                                len = ap.Data.Length;
+
+                            VoiceMessage msg = new VoiceMessage(t.Dummy, (VoiceChatChannel)ap.Channel, ap.Data, len, false);
+                            foreach (ReferenceHub client in ReferenceHub.AllHubs)
+                            {
+                                if (client == null || client.isLocalPlayer || client == t.Dummy || client.connectionToClient == null)
+                                    continue;
+                                client.connectionToClient.Send(msg);
+                            }
+                        }
+
+                        i++;
+                    }
+
+                    idx[t.PlayerId] = i;
+                    if (i < t.AudioFrames.Count)
+                        live = true;
+                }
+
+                if (!live)
+                    break;
+
+                yield return Timing.WaitForSeconds(0.02f);
             }
         }
     }
